@@ -60,7 +60,7 @@ func TestToolPolicyAndVerdicts(t *testing.T) {
 	}{
 		{"read_file", `{"path":"internal/review/core.go"}`, true}, {"read_file", `{"path":"../secret"}`, false}, {"read_file", `{"path":"."}`, false}, {"read_file", `{`, false},
 		{"list_files", `{}`, true}, {"run_checks", `{}`, true}, {"list_files", `{"extra":true}`, false}, {"run_checks", `{} {}`, false}, {"shell", `{}`, false},
-		{"finish_review", finishJSON("lgtm"), true}, {"finish_review", `{`, false}, {"finish_review", `{}`, false}, {"finish_review", finishJSON("unknown"), false},
+		{"finish_review", finishJSON("lgtm"), true}, {"finish_review", finishJSON("LGTM"), true}, {"finish_review", finishJSON(" lgtm "), true}, {"finish_review", `{`, false}, {"finish_review", `{}`, false}, {"finish_review", finishJSON("unknown"), false},
 		{"finish_review", strings.Replace(finishJSON("lgtm"), `"question":""`, `"question":"Why?"`, 1), false},
 		{"finish_review", finishJSON("changes_required"), false}, {"finish_review", finishJSON("clarification_required"), false},
 		{"finish_review", strings.Replace(finishJSON("clarification_required"), `"question":""`, `"question":"PROPOSED-Scope-v1:: Is this required?"`, 1), true},

@@ -130,6 +130,7 @@ func Plan(name string, arguments json.RawMessage) (Command, error) {
 		if err := decode(&c); err != nil {
 			return nil, err
 		}
+		c.Verdict = strings.ToLower(strings.TrimSpace(c.Verdict))
 		if strings.TrimSpace(c.Summary) == "" {
 			return nil, fmt.Errorf("verdict requires an evidence-based summary")
 		}
@@ -147,7 +148,7 @@ func Plan(name string, arguments json.RawMessage) (Command, error) {
 				return nil, fmt.Errorf("clarification requires a question and no final findings")
 			}
 		default:
-			return nil, fmt.Errorf("unknown verdict")
+			return nil, fmt.Errorf("verdict must be lgtm, changes_required, or clarification_required")
 		}
 		for _, finding := range c.Findings {
 			if !fs.ValidPath(finding.Path) || finding.Path == "." || finding.Line < 1 || strings.TrimSpace(finding.Explanation) == "" {
