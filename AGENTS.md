@@ -2,7 +2,22 @@
 
 Follow the development principles and intent vocabulary in README.md.
 
+## Product boundary
+
+- Ferretta enters only after an implementation agent submits a PR. The human's earlier interaction with that agent is outside Ferretta and can use any tools or workflow.
+- Start review from the submitted commits and repository-configured policy. A pre-existing confirmed intent record MUST NOT be required to admit a PR for review.
+- Prepare the review environment as needed and bind review evidence to exact commits and the policy used.
+- Retain model/provider, effort level, and attempt provenance for reviews and clarification questions. Keep requested settings distinct from provider-reported execution details; unavailable details remain unknown.
+- Repository policy selects local inference or OpenRouter and specifies tool use, multi-turn review, reasoning capabilities/effort, and resource limits. Reject routes that cannot satisfy required capabilities; only use explicitly permitted fallbacks.
+- Keep the review loop resumable, retaining model turns, tool results, and provider-required continuation data. Tool execution and verdict acceptance remain subject to core policy.
+- LGTM is a valid outcome when the evidence supports intent alignment, correctness, and an appropriately small, well-designed implementation. Explain major tradeoffs; do not manufacture findings or chase fewer lines at the expense of required behavior or clarity. Model approval cannot override incomplete required checks, blocking questions/findings, or a stale revision.
+- Ferretta's reviewer may ask for clarification with PROPOSED comments on the PR. Human replies notify and resume the saved review job; corrections lead to a revised proposal, and confirmations establish intent for review.
+- Keep the notification adapter separate from core policy. Repeated delivery must not duplicate model spending or posted questions.
+
+## Implementation practices
+
 - Keep the implementation pure Go where possible, including dependencies. Verify native amd64 and arm64 targets with CGO disabled.
+- Make impossible states impossible. Model valid application states and transitions with types and structures that prevent inconsistent combinations. Prefer state-specific data, distinct types, encapsulated fields, and invariant-preserving constructors/transitions over independent flags and loosely related optional fields. Validate external inputs at the boundary and explicitly handle Go zero values where compile-time enforcement is insufficient.
 - Tests MUST be fast and cover as much behavior as is reasonable. Do not pursue coverage at the expense of useful assertions or maintainability.
 - Inject client dependencies so the normal test suite can use fake clients or controlled transports without live network calls.
 - Keep the core pure: it composes command objects; thin executors perform effects and return results.
@@ -19,6 +34,8 @@ Run `make check` before committing. It uses the pinned Go toolchain for formatti
 
 Run the separate networked suite with `FERRETTA_TEST_REPO=owner/repo FERRETTA_TEST_PR=number make test-network`, using an existing PR with comments. `GITHUB_TOKEN` is optional for public repositories and required when the fixture needs authentication. This suite only reads GitHub data; it must not post test comments.
 
-The current CLI inspects existing comments and emits a current snapshot, not a durable confirmation log or merge authorization. Preserve this distinction until durable evidence capture exists.
+The intent CLI inspects existing comments and emits a current snapshot, not a durable confirmation log or merge authorization. The manual `review` command runs a bounded local Ollama tool loop in a detached worktree, executes trusted policy checks, and saves an advisory report plus private session checkpoints. It does not post to GitHub, receive notifications, integrate confirmed comment intent into the model session, or resume checkpoints yet. Do not claim those capabilities are implemented.
+
+CI uploads build artifacts. Version-tag workflows stage archives and checksums in draft GitHub releases; publication and release-test cadence remain separate decisions. Do not upload private `.ferretta/runs/` session data as build or release artifacts.
 
 Only authenticated human confirmation establishes agreed intent. Agents may author PROPOSED markers, but must not author CORRECTED or CONFIRMED markers as human decisions. Amendment semantics remain deferred.

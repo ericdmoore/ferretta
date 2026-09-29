@@ -1,0 +1,48 @@
+name: Release binaries
+
+on:
+  push:
+    tags: ['v[0-9]*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: .go-version
+          cache: false
+      - name: Verify release revision
+        env:
+          COVERAGE_BASE_REF: HEAD^
+        run: make check
+      - name: Package native binaries
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: make package VERSION="$RELEASE_TAG"
+      - name: Stage assets on a draft GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" --json isDraft > release-state.json 2>/dev/null; then
+            if ! jq -e '.isDraft == true' release-state.json >/dev/null; then
+              echo "Refusing to replace assets on a published release" >&2
+              exit 1
+            fi
+          else
+            gh release create "$RELEASE_TAG" --verify-tag --draft --title "$RELEASE_TAG" --generate-notes
+          fi
+          gh release upload "$RELEASE_TAG" dist/* --clobber

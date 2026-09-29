@@ -16,9 +16,9 @@ if [ -n "$unformatted" ]; then
   echo "$unformatted" >&2
   exit 1
 fi
-go vet ./...
+make --no-print-directory lint
 sh scripts/test-coverage.sh
-go test -count=1 -coverprofile=.coverage.out ./...
+make --no-print-directory coverage
 
 # Compare exact statement ratios rather than rounded go tool cover output.
 measured=$(awk 'NR > 1 { total += $2; if ($3 > 0) covered += $2 } END { if (total == 0) exit 1; print covered+0, total }' .coverage.out)

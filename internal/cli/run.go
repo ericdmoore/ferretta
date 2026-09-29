@@ -17,9 +17,23 @@ type CommentsClient interface {
 	Comments(context.Context, string, int) ([]github.Comment, error)
 }
 
+type ReviewRunner interface {
+	Run(context.Context, []string, io.Writer, io.Writer) int
+}
+
 func Run(ctx context.Context, args []string, input io.Reader, output, errors io.Writer, client CommentsClient) int {
+	return RunWithReviewer(ctx, args, input, output, errors, client, nil)
+}
+
+func RunWithReviewer(ctx context.Context, args []string, input io.Reader, output, errors io.Writer, client CommentsClient, reviewer ReviewRunner) int {
 	fail := func(err error) int { fmt.Fprintln(errors, err); return 1 }
-	const usage = "usage: ferretta intent parse | ferretta intent inspect --repo owner/repo --pr N --humans login --agents login"
+	const usage = "usage: ferretta intent parse | ferretta intent inspect --repo owner/repo --pr N --humans login --agents login | ferretta review --repo owner/repo --pr N [--policy .ferretta/review.json]"
+	if len(args) > 0 && args[0] == "review" {
+		if reviewer == nil {
+			return fail(fmt.Errorf("review runner is not configured"))
+		}
+		return reviewer.Run(ctx, args[1:], output, errors)
+	}
 	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
 		if _, err := fmt.Fprintln(output, usage); err != nil {
 			return fail(err)
