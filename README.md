@@ -8,8 +8,42 @@ Context consistency,
 Local extensibility
 
 ## Status
-Experimental - possible its 
-accomplished w/ highly customized pi.dev
+Experimental. The first implementation is a pure Go CLI that parses intent markers and inspects existing GitHub PR conversation comments. The broader execution and review harness below remains a design draft. It is still worth evaluating which parts could be accomplished with a customized pi.dev.
+
+### Try the CLI
+
+Install Go 1.26.5 and Make, then run:
+
+```sh
+make build
+printf 'PROPOSED-PureGo-v1:: Build with CGO disabled.\n' | bin/ferretta intent parse
+bin/ferretta intent inspect --repo owner/repo --pr 123 --humans human-login --agents agent-login
+```
+
+`intent parse` reads Markdown from standard input and emits JSON. `intent inspect` reads GitHub's PR conversation comments, checks the proposal/correction/confirmation sequence, and emits a JSON report with the repository, PR, source comment links, authors, and content hashes. Supply `GITHUB_TOKEN` in the environment for private repositories or authenticated API limits. The CLI makes no GitHub writes and does not invoke a model.
+
+Human and agent logins are explicit, disjoint allowlists, matched without regard to case against GitHub-reported authors. A GitHub bot cannot act as a human. Topics are case-sensitive. Markers must start at column one and include a positive version suffix, beginning with `v1`; fenced and quoted examples are ignored. A correction must be followed by a proposal at the next version before confirmation. Choice selections remain in the confirmation body; the CLI does not infer their meaning from prose.
+
+Reports describe the **current comment snapshot**, not a durable historical agreement or authorization to merge. Edited protocol comments produce findings because the original wording cannot be recovered from this API response. Any finding makes `valid` false and returns exit code 1. An exit code of 0 means the observed sequence is valid; it does not mean all topics are confirmed. Deleted comments, changes during pagination, durable evidence storage, and explicit replacement of confirmed decisions still need dedicated handling. Inline code-review comments and PR descriptions are outside this first slice.
+
+### Development
+
+```sh
+make install-hooks    # enable the repository's pre-commit checks
+make fmt              # format with the pinned toolchain
+make check            # same checks as CI
+make coverage-update  # retain improved coverage in .coverage-baseline
+```
+
+The compiler, `gofmt`, and `go vet` are pinned together through `.go-version` and `go.mod`. Checks run offline tests, enforce an exact statement-coverage ratio, reject lowered baselines, and cross-compile for Linux/macOS on amd64/arm64 with `CGO_ENABLED=0`. The baseline includes the executable entry point. Stage or stash working changes before committing so the local hook checks the commit's contents. CI independently runs `make check` against the base revision's coverage baseline.
+
+Real-provider adapter checks are separate:
+
+```sh
+FERRETTA_TEST_REPO=owner/repo FERRETTA_TEST_PR=123 make test-network
+```
+
+Choose an existing PR with at least one conversation comment. This read-only suite requires network access and fails when the fixture is not configured. The release policy deciding which minor or major releases require this suite remains deferred.
 
 ## Inspiration
 pi Coding Agent + openRouter + vLLM
@@ -137,4 +171,4 @@ Merge eligibility additionally requires:
 - **Coverage ratchet:** commits must fail checks when coverage falls below the accepted baseline. Use consistent measurement settings and retain gains in the baseline; do not lower it to make a change pass.
 - **Local/CI parity:** local development and CI must use the same pinned compiler, formatter, linter, configuration, and check entry points.
 
-These are implementation requirements. The repository does not yet contain executable code, a test suite, coverage enforcement, or CI tooling; those checks must be established with the implementation.
+These requirements guide the implementation. The first CLI includes offline tests, a separate networked adapter suite, coverage enforcement, a local commit hook, and the shared CI check entry point described above.

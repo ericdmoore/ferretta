@@ -15,6 +15,10 @@ Follow the development principles and intent vocabulary in README.md.
 - Coverage is a ratchet: commit checks must reject decreases against the accepted baseline, and the baseline must retain gains.
 - Local and CI checks must use the same pinned compiler, formatter, linter, configurations, and entry points.
 
-The repository currently contains design documentation only. Establish executable checks with the implementation; do not describe documented requirements as already enforced.
+Run `make check` before committing. It uses the pinned Go toolchain for formatting checks, vet, offline tests, coverage enforcement, and CGO-disabled amd64/arm64 builds for Linux and macOS. Run `make coverage-update` when coverage improves and commit the updated baseline. Install the local commit hook with `make install-hooks`.
+
+Run the separate networked suite with `FERRETTA_TEST_REPO=owner/repo FERRETTA_TEST_PR=number make test-network`, using an existing PR with comments. `GITHUB_TOKEN` is optional for public repositories and required when the fixture needs authentication. This suite only reads GitHub data; it must not post test comments.
+
+The current CLI inspects existing comments and emits a current snapshot, not a durable confirmation log or merge authorization. Preserve this distinction until durable evidence capture exists.
 
 Only authenticated human confirmation establishes agreed intent. Agents may author PROPOSED markers, but must not author CORRECTED or CONFIRMED markers as human decisions. Amendment semantics remain deferred.
