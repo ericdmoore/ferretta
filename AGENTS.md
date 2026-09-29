@@ -34,6 +34,18 @@ Run `make check` before committing. It uses the pinned Go toolchain for formatti
 
 Run the separate networked suite with `FERRETTA_TEST_REPO=owner/repo FERRETTA_TEST_PR=number make test-network`, using an existing PR with comments. `GITHUB_TOKEN` is optional for public repositories and required when the fixture needs authentication. This suite only reads GitHub data; it must not post test comments.
 
+Ferretta’s GitHub-facing commands now authenticate through a dedicated GitHub App installation
+configured in machine-level `ferretta/github.json` (or absolute
+`FERRETTA_GITHUB_CONFIG`). Never introduce a fallback to personal `gh`, `GH_TOKEN`,
+or `GITHUB_TOKEN` credentials. App tokens are repository-scoped and read-only.
+Do not write credentials to logs, reports, sessions, Git configuration, or command
+arguments. The process environment filter is not a sandbox: checks still run as
+the OS user. Keep operator credentials separate from untrusted code execution.
+
+Run `FERRETTA_TEST_REPO=owner/repo FERRETTA_TEST_PR=number make test-network-app`
+after provisioning app credentials; it verifies identity and reads an existing PR
+with comments. It never posts comments or generates model responses.
+
 The intent CLI inspects existing comments and emits a current snapshot, not a durable confirmation log or merge authorization. The manual `review` command runs a bounded local Ollama tool loop in a detached worktree, executes trusted policy checks, and saves an advisory report plus private session checkpoints. It does not post to GitHub, receive notifications, integrate confirmed comment intent into the model session, or resume checkpoints yet. Do not claim those capabilities are implemented.
 
 CI uploads build artifacts. Version-tag workflows stage archives and checksums in draft GitHub releases; publication and release-test cadence remain separate decisions. Do not upload private `.ferretta/runs/` session data as build or release artifacts.

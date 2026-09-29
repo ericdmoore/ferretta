@@ -27,7 +27,35 @@ func Run(ctx context.Context, args []string, input io.Reader, output, errors io.
 
 func RunWithReviewer(ctx context.Context, args []string, input io.Reader, output, errors io.Writer, client CommentsClient, reviewer ReviewRunner) int {
 	fail := func(err error) int { fmt.Fprintln(errors, err); return 1 }
-	const usage = "usage: ferretta intent parse | ferretta intent inspect --repo owner/repo --pr N --humans login --agents login | ferretta review --repo owner/repo --pr N [--policy .ferretta/review.json]"
+	const usage = "usage: ferretta auth github --repo owner/repo | ferretta intent parse | ferretta intent inspect --repo owner/repo --pr N --humans login --agents login | ferretta review --repo owner/repo --pr N [--policy .ferretta/review.json]"
+	if len(args) > 0 && args[0] == "auth" {
+		if len(args) < 2 || args[1] != "github" {
+			return fail(fmt.Errorf("use ferretta auth github --repo owner/repo"))
+		}
+		flags := flag.NewFlagSet("auth github", flag.ContinueOnError)
+		flags.SetOutput(errors)
+		repo := flags.String("repo", "", "GitHub owner/repository to verify")
+		if err := flags.Parse(args[2:]); err != nil {
+			return 1
+		}
+		if flags.NArg() != 0 || !github.ValidRepository(*repo) {
+			return fail(fmt.Errorf("provide --repo owner/repository"))
+		}
+		auth, ok := client.(interface {
+			Status(context.Context, string) (github.Identity, error)
+		})
+		if !ok {
+			return fail(fmt.Errorf("GitHub App connection is required"))
+		}
+		status, err := auth.Status(ctx, *repo)
+		if err != nil {
+			return fail(err)
+		}
+		if err := json.NewEncoder(output).Encode(status); err != nil {
+			return fail(err)
+		}
+		return 0
+	}
 	if len(args) > 0 && args[0] == "review" {
 		if reviewer == nil {
 			return fail(fmt.Errorf("review runner is not configured"))

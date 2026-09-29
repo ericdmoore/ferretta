@@ -97,9 +97,6 @@ func (f commandFunc) Run(c context.Context, d, n string, a ...string) ([]byte, e
 func defaultExec(_ context.Context, _ string, name string, args ...string) ([]byte, error) {
 	key := name + " " + strings.Join(args, " ")
 	switch {
-	case strings.HasPrefix(key, "gh pr view"):
-		data, _ := json.Marshal(pr())
-		return data, nil
 	case key == "git remote get-url origin":
 		return []byte("https://github.com/o/r.git\n"), nil
 	case strings.HasPrefix(key, "git merge-base"):
@@ -140,9 +137,16 @@ func reply(name, args string) Reply {
 	call.Function.Arguments = json.RawMessage(args)
 	return Reply{Model: "actual-local-model", Done: true, DoneReason: "stop", Message: Message{Role: "assistant", Thinking: "private continuation", ToolCalls: []ToolCall{call}}, PromptTokens: 10, OutputTokens: 20}
 }
-func runner(m *fakeModel) Runner {
-	return Runner{Exec: commandFunc(defaultExec), Model: m, Now: func() time.Time { return time.Unix(100, 0).UTC() }}
+
+type prFunc func(context.Context, string, int) (PR, error)
+
+func (f prFunc) PullRequest(ctx context.Context, repo string, n int) (PR, error) {
+	return f(ctx, repo, n)
 }
+func runner(m *fakeModel) *Runner {
+	return &Runner{Exec: commandFunc(defaultExec), GitHub: prFunc(func(context.Context, string, int) (PR, error) { return pr(), nil }), Fetch: func(context.Context, string, string) error { return nil }, Model: m, Now: func() time.Time { return time.Unix(100, 0).UTC() }}
+}
+
 func workspace() Workspace { return Workspace{path: "scratch", mergeBase: base, pr: pr()} }
 
 func TestPRAndWorkspaceValidation(t *testing.T) {
@@ -156,12 +160,16 @@ func TestPRAndWorkspaceValidation(t *testing.T) {
 		t.Fatal("bad target accepted")
 	}
 	for _, data := range []string{`{`, `{"number":1}`, `{"number":1,"state":"CLOSED"}`} {
-		r.Exec = commandFunc(func(context.Context, string, string, ...string) ([]byte, error) { return []byte(data), nil })
+		r.GitHub = prFunc(func(context.Context, string, int) (PR, error) {
+			var p PR
+			err := json.Unmarshal([]byte(data), &p)
+			return p, err
+		})
 		if _, e := r.PR(ctx, "o/r", 1); e == nil {
 			t.Fatal("bad PR accepted")
 		}
 	}
-	r.Exec = commandFunc(func(context.Context, string, string, ...string) ([]byte, error) { return nil, errors.New("offline") })
+	r.GitHub = prFunc(func(context.Context, string, int) (PR, error) { return PR{}, errors.New("offline") })
 	if _, e := r.PR(ctx, "o/r", 1); e == nil {
 		t.Fatal("missing provider error")
 	}
@@ -169,7 +177,12 @@ func TestPRAndWorkspaceValidation(t *testing.T) {
 	if w, e := r.Prepare(ctx, "o/r", pr(), "scratch"); e != nil || w.pr.Head != head || w.mergeBase != base {
 		t.Fatal(w, e)
 	}
-	for _, operation := range []string{"remote", "fetch", "merge-base", "worktree"} {
+	r.Fetch = func(context.Context, string, string) error { return errors.New("fetch failed") }
+	if _, e := r.Prepare(ctx, "o/r", pr(), "scratch"); e == nil {
+		t.Fatal("lost fetch failure")
+	}
+	r.Fetch = func(context.Context, string, string) error { return nil }
+	for _, operation := range []string{"remote", "merge-base", "worktree"} {
 		r.Exec = commandFunc(func(ctx context.Context, d, n string, a ...string) ([]byte, error) {
 			if n == "git" && a[0] == operation {
 				return nil, errors.New("failed")

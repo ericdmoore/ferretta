@@ -120,6 +120,7 @@ func TestInvalidCLI(t *testing.T) {
 		{"intent", "inspect", "--pr", "no"},
 		{"intent", "inspect", "--repo", "owner/repo", "--pr", "7"},
 		{"intent", "inspect", "--repo", "owner/repo", "--pr", "7", "extra"},
+		{"intent", "inspect", "--repo", "owner/repo", "--pr", "7", "--humans", "same-account", "--agents", "SAME-ACCOUNT"},
 	} {
 		client := &fakeClient{}
 		if code := Run(context.Background(), args, nil, io.Discard, io.Discard, client); code == 0 || client.calls != 0 {

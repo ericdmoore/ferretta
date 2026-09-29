@@ -14,11 +14,14 @@ import (
 	"time"
 )
 
-type Process struct{}
+type Process struct {
+	Credentials func(context.Context, string) (string, error)
+}
 
 func (Process) Run(ctx context.Context, dir, name string, args ...string) ([]byte, error) {
 	command := exec.CommandContext(ctx, name, args...)
 	command.Dir = dir
+	command.Env = cleanEnvironment(os.Environ())
 	var stdout, stderr bytes.Buffer
 	command.Stdout = &stdout
 	command.Stderr = &stderr
@@ -30,8 +33,14 @@ func (Process) Run(ctx context.Context, dir, name string, args ...string) ([]byt
 
 type CLI struct{ Runner Runner }
 
-func NewCLI() CLI {
-	return CLI{Runner: Runner{Exec: Process{}, Model: Ollama{HTTP: &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
+type GitHubConnection interface {
+	PullRequests
+	Token(context.Context, string) (string, error)
+}
+
+func NewCLI(connection GitHubConnection) CLI {
+	process := Process{Credentials: connection.Token}
+	return CLI{Runner: Runner{Exec: process, GitHub: connection, Fetch: process.Fetch, Model: Ollama{HTTP: &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
 		return fmt.Errorf("local model redirects are not permitted")
 	}}}, Now: time.Now}}
 }

@@ -7,23 +7,19 @@ import (
 	"fmt"
 	"os"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
+
+	"github.com/ericdmoore/ferretta/internal/github"
 )
 
 type Commander interface {
 	Run(context.Context, string, string, ...string) ([]byte, error)
 }
-type PR struct {
-	Number int    `json:"number"`
-	Head   string `json:"headRefOid"`
-	Base   string `json:"baseRefOid"`
-	URL    string `json:"url"`
-	Title  string `json:"title"`
-	Body   string `json:"body"`
-	State  string `json:"state"`
-	Draft  bool   `json:"isDraft"`
+type PR = github.PullRequest
+
+type PullRequests interface {
+	PullRequest(context.Context, string, int) (github.PullRequest, error)
 }
 
 type Workspace struct {
@@ -31,9 +27,11 @@ type Workspace struct {
 	pr              PR
 }
 type Runner struct {
-	Exec  Commander
-	Model Model
-	Now   func() time.Time
+	GitHub PullRequests
+	Fetch  func(context.Context, string, string) error
+	Exec   Commander
+	Model  Model
+	Now    func() time.Time
 }
 
 type Report struct {
@@ -61,12 +59,11 @@ func (r Runner) PR(ctx context.Context, repo string, number int) (PR, error) {
 	if !regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`).MatchString(repo) || number < 1 {
 		return PR{}, fmt.Errorf("provide owner/repository and a positive PR number")
 	}
-	data, err := r.Exec.Run(ctx, "", "gh", "pr", "view", strconv.Itoa(number), "--repo", repo, "--json", "number,headRefOid,baseRefOid,url,title,body,state,isDraft")
-	if err != nil {
-		return PR{}, err
+	if r.GitHub == nil {
+		return PR{}, fmt.Errorf("GitHub App connection is required")
 	}
-	var pr PR
-	if err := json.Unmarshal(data, &pr); err != nil {
+	pr, err := r.GitHub.PullRequest(ctx, repo, number)
+	if err != nil {
 		return PR{}, err
 	}
 	if pr.Number != number || !shaPattern.MatchString(pr.Head) || !shaPattern.MatchString(pr.Base) || pr.URL == "" || pr.State != "OPEN" || pr.Draft {
@@ -85,7 +82,10 @@ func (r Runner) Prepare(ctx context.Context, repo string, pr PR, workspace strin
 		return Workspace{}, fmt.Errorf("origin must match the reviewed repository")
 	}
 	for _, sha := range []string{pr.Base, pr.Head} {
-		if _, err := r.Exec.Run(ctx, "", "git", "fetch", "--no-tags", "origin", sha); err != nil {
+		if r.Fetch == nil {
+			return Workspace{}, fmt.Errorf("authenticated Git fetch is required")
+		}
+		if err := r.Fetch(ctx, repo, sha); err != nil {
 			return Workspace{}, err
 		}
 	}

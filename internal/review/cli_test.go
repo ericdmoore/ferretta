@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/ericdmoore/ferretta/internal/github"
 	"io"
 	"net/http"
 	"os"
@@ -32,7 +33,7 @@ func TestModelTransportFailures(t *testing.T) {
 	}{Arguments: json.RawMessage("invalid")}}}}}); e == nil {
 		t.Fatal("invalid continuation accepted")
 	}
-	client := NewCLI().Runner.Model.(Ollama).HTTP.(*http.Client)
+	client := NewCLI(&github.Connection{}).Runner.Model.(Ollama).HTTP.(*http.Client)
 	if e := client.CheckRedirect(&http.Request{}, nil); e == nil {
 		t.Fatal("local model could redirect off machine")
 	}
@@ -67,24 +68,25 @@ func TestReviewCLI(t *testing.T) {
 			}
 			r := runner(m)
 			fetches := 0
-			r.Exec = commandFunc(func(c context.Context, d, n string, a ...string) ([]byte, error) {
-				if n == "gh" {
-					fetches++
-					if mode == "fetch_failed" {
-						return nil, errors.New("offline")
-					}
-					if fetches == 2 && mode == "stale" {
-						changed := pr()
-						changed.Head = strings.Repeat("c", 40)
-						return json.Marshal(changed)
-					}
-					if fetches == 2 && mode == "report_failed" {
-						dirs, _ := filepath.Glob(".ferretta/runs/*")
-						if e := os.Mkdir(filepath.Join(dirs[0], "report.json"), 0700); e != nil {
-							t.Fatal(e)
-						}
+			r.GitHub = prFunc(func(context.Context, string, int) (PR, error) {
+				fetches++
+				if mode == "fetch_failed" {
+					return PR{}, errors.New("offline")
+				}
+				if fetches == 2 && mode == "stale" {
+					changed := pr()
+					changed.Head = strings.Repeat("c", 40)
+					return changed, nil
+				}
+				if fetches == 2 && mode == "report_failed" {
+					dirs, _ := filepath.Glob(".ferretta/runs/*")
+					if e := os.Mkdir(filepath.Join(dirs[0], "report.json"), 0700); e != nil {
+						t.Fatal(e)
 					}
 				}
+				return pr(), nil
+			})
+			r.Exec = commandFunc(func(c context.Context, d, n string, a ...string) ([]byte, error) {
 				if n == "git" && a[0] == "remote" && mode == "prepare_failed" {
 					return nil, errors.New("wrong remote")
 				}
@@ -121,7 +123,7 @@ func TestReviewCLI(t *testing.T) {
 			if mode == "write_failed" {
 				output = failingIO{}
 			}
-			code := (CLI{Runner: r}).Run(context.Background(), []string{"--repo", "o/r", "--pr", "1", "--policy", "policy.json"}, output, &errs)
+			code := (CLI{Runner: *r}).Run(context.Background(), []string{"--repo", "o/r", "--pr", "1", "--policy", "policy.json"}, output, &errs)
 			if mode == "success" || mode == "cleanup_failed" {
 				if code != 0 || !strings.Contains(out.String(), `"status":"lgtm"`) {
 					t.Fatalf("code %d, output %s, errors %s", code, &out, &errs)
@@ -143,7 +145,7 @@ func TestReviewCLI(t *testing.T) {
 
 func TestReviewCLIArguments(t *testing.T) {
 	t.Chdir(t.TempDir())
-	c := CLI{Runner: runner(&fakeModel{})}
+	c := CLI{Runner: *runner(&fakeModel{})}
 	for _, args := range [][]string{nil, {"--unknown"}, {"--repo", "o/r", "--pr", "1"}} {
 		if code := c.Run(context.Background(), args, io.Discard, io.Discard); code != 1 {
 			t.Fatal("invalid input accepted")

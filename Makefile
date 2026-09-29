@@ -8,7 +8,7 @@ TEST ?= .
 ARGS ?= --help
 VERSION ?= dev
 
-.PHONY: help check fmt lint test test-network coverage coverage-html build build-all package run install-hooks coverage-update
+.PHONY: help check fmt lint test test-network test-network-app coverage coverage-html build build-all package run install-hooks coverage-update
 
 help: ## Show common development commands (also the default for make)
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z_-]+:.*## / {printf "  make %-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -27,7 +27,10 @@ test: ## Run fresh offline tests; optionally set PKG and TEST
 	@go test -count=1 $(PKG) -run '$(TEST)'
 
 test-network: ## Run live GitHub tests; requires FERRETTA_TEST_REPO and FERRETTA_TEST_PR
-	@go test -count=1 -tags=network -run '^TestNetwork' ./internal/github
+	@go test -count=1 -tags=network -run '^TestNetworkComments$$' ./internal/github
+
+test-network-app: ## Verify configured GitHub App against FERRETTA_TEST_REPO/PR (read-only)
+	@go test -count=1 -tags=network -run '^TestNetworkApp$$' ./internal/github
 
 coverage: ## Run the full offline suite and print coverage without changing the baseline
 	@go test -count=1 -coverprofile=.coverage.out ./...

@@ -179,6 +179,22 @@ endpoints. Discovery does not authorize use. A loopback proxy may route remotely
 endpoint location is distinct from inference location. Discovery does not start
 services, download models, run inference, execute checks, or overwrite policy.
 
+### GitHub identity and connection
+
+Use a dedicated GitHub App installation for Ferretta's API and Git transport.
+Agent proposals must retain the app's bot identity; human decisions require
+separate authenticated allowlisted authors. Do not fall back to personal `gh`
+credentials or tokens. Machine configuration holds app/installation IDs and a
+private-key reference; repository policy does not carry credentials.
+
+The initial connection uses short-lived, repository-scoped read tokens and
+manual commands. User OAuth is not required. Registration, app installation,
+and local private-key provisioning are operator setup. A shared hosted app's
+private key must never be distributed to other installations. Strong separation
+from human credentials during untrusted code execution needs an OS isolation
+boundary; a detached worktree and environment filtering do not supply one.
+See [GitHub App setup](docs/github-app-auth.md) for the implemented scope.
+
 ## 9. Resource ledger and stop constraints
 
 Track monetary allowances, model/tool execution time, cycles/rounds, calls/tokens,

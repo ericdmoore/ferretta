@@ -22,15 +22,31 @@ printf 'PROPOSED-PureGo-v1:: Build with CGO disabled.\n' | bin/ferretta intent p
 bin/ferretta intent inspect --repo owner/repo --pr 123 --humans human-login --agents agent-login
 ```
 
-`intent parse` reads Markdown from standard input and emits JSON. `intent inspect` reads GitHub's PR conversation comments, checks the proposal/correction/confirmation sequence, and emits a JSON report with the repository, PR, source comment links, authors, and content hashes. Supply `GITHUB_TOKEN` in the environment for private repositories or authenticated API limits. The intent commands do not invoke a model. No current command writes to GitHub.
+`intent parse` reads Markdown from standard input and emits JSON. `intent inspect` reads GitHub's PR conversation comments, checks the proposal/correction/confirmation sequence, and emits a JSON report with the repository, PR, source comment links, authors, and content hashes. Configure the dedicated [GitHub App connection](docs/github-app-auth.md) for API access; personal tokens and the `gh` login are not used by the CLI. The intent commands do not invoke a model. No current command writes to GitHub.
 
 Human and agent logins are explicit, disjoint allowlists, matched without regard to case against GitHub-reported authors. A GitHub bot cannot act as a human. Topics are case-sensitive. Markers must start at column one and include a positive version suffix, beginning with `v1`; fenced and quoted examples are ignored. A correction must be followed by a proposal at the next version before confirmation. Choice selections remain in the confirmation body; the CLI does not infer their meaning from prose.
 
 Reports describe the **current comment snapshot**, not a durable historical agreement or authorization to merge. Edited protocol comments produce findings because the original wording cannot be recovered from this API response. Any finding makes `valid` false and returns exit code 1. An exit code of 0 means the observed sequence is valid; it does not mean all topics are confirmed. Deleted comments, changes during pagination, durable evidence storage, and explicit replacement of confirmed decisions still need dedicated handling. Inline code-review comments and PR descriptions are outside this first slice.
 
+### GitHub authentication
+
+Ferretta uses its own GitHub App installation identity for PR metadata, comments,
+and Git fetches. Configure its client ID, installation ID, and private-key file
+in machine-level `ferretta/github.json`, outside this repository. See the
+[registration and configuration guide](docs/github-app-auth.md).
+
+```sh
+bin/ferretta auth github --repo ericdmoore/ferretta
+```
+
+This verifies access and prints the bot identity without inference or PR writes.
+There is no personal-login fallback, and configuring authentication does not start
+a watcher. Checks still execute as the local OS user; the worktree and environment
+filter are not a security sandbox.
+
 ### Review a PR with a local model
 
-The initial review adapter uses Ollama on a loopback endpoint. It requires installed Git and an authenticated GitHub CLI (`gh`), plus a local model advertising tool-use and thinking support. The checked-in `.ferretta/review.json` selects the installed `gpt-oss:20b` model at medium effort with explicit turn/token/time limits. Change that trusted policy to match your machine; this command does not download a model or fall back to hosted inference.
+The initial review adapter uses Ollama on a loopback endpoint. It requires installed Git, a configured [GitHub App installation](docs/github-app-auth.md), and a local model advertising tool-use and thinking support. The checked-in `.ferretta/review.json` selects the installed `gpt-oss:20b` model at medium effort with explicit turn/token/time limits. Change that trusted policy to match your machine; this command does not download a model or fall back to hosted inference.
 
 ```sh
 make build
