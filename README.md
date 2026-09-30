@@ -41,6 +41,10 @@ OpenRouter inference, and gated repairs/merging. The agreed configuration layers
 and cost/time/quality objectives are described in [configuration decisions](docs/configuration.md)
 and [architecture](arch.md); the layered TOML resolver is not implemented.
 
+To have an agent help author a policy, point it to
+[skills/ferretta-config/SKILL.md](skills/ferretta-config/SKILL.md) in this checkout.
+The skill distinguishes supported configuration from proposed TOML examples.
+
 ### Self-review checkpoint
 
 On September 29, 2026, Ferretta reviewed [PR #1](https://github.com/ericdmoore/ferretta/pull/1)

@@ -1,5 +1,10 @@
 # Configuration decisions and implementation boundary
 
+For agent-assisted authoring, use the repository's
+[Ferretta configuration skill](../skills/ferretta-config/SKILL.md). It guides
+runnable policy edits and clearly labeled design drafts; it does not implement
+the proposed loader or workflow syntax.
+
 ## Agreed target
 
 The effective policy resolves field by field:
