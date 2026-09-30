@@ -25,6 +25,10 @@ not the defaults of whoever happens to log in to the machine.
 
 ## Objectives
 
+Draft [TOML presets](presets/README.md) give `cost`, `time`, and `quality` a
+shared proposed structure, with separate routing and planning preferences.
+They are design examples, not configuration accepted by the current CLI.
+
 | Preset | Primary optimization | Unchanged requirements |
 | --- | --- | --- |
 | `cost` (default) | Minimize additional spending | Capabilities, authorized routes, hard limits and acceptance gates |
