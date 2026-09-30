@@ -6,7 +6,7 @@
   <key>UserName</key><string>_ferretta</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/usr/local/bin/ferretta</string>
+    <string>/usr/local/libexec/ferretta</string>
     <string>service</string><string>run</string>
     <string>--state</string><string>/var/db/ferretta</string>
     <string>--repo</string><string>ericdmoore/ferretta</string>

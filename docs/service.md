@@ -63,7 +63,8 @@ an execution sandbox for future model tools.
 
 For **macOS/launchd**, provision a dedicated `_ferretta` service account using
 the machine's account-management policy. Install the binary at
-`/usr/local/bin/ferretta`; create service-owned mode-0700 `/var/db/ferretta` and
+`/usr/local/libexec/ferretta` (with a traversable, root-owned `libexec` directory);
+create service-owned mode-0700 `/var/db/ferretta` and
 `/usr/local/etc/ferretta`. Put the App config/key in the latter (key mode 0600),
 and provision `/var/log/ferretta.log` as service-owned mode 0600. Install
 `deploy/com.ferretta.daemon.plist` as root-owned mode 0644 under
@@ -80,6 +81,33 @@ connection is loaded once per process. No personal GitHub login fallback exists.
 
 Reference semantics: [launchd startup and daemons](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html),
 [systemd service execution](https://github.com/systemd/systemd/blob/main/man/systemd.exec.xml).
+
+## Installation validation (2026-09-29)
+
+The CGO-disabled binary from commit `8a0c60f` was exercised on real hosts:
+
+| Host | Environment | Verified | Remaining |
+| --- | --- | --- | --- |
+| jepsen | Ubuntu 26.04.1, amd64 | System installation, non-login service account, unit validation, enable/disable, start/stop/restart, clean SIGTERM exit, systemd recovery after SIGKILL, SQLite persistence, private file permissions, concurrent status reads and rejection of a second owner | GitHub App provisioning/live polling; actual reboot test |
+| alpaca | macOS 26.6.2, arm64 | Plist validation and temporary user-domain launchd startup, forced restart, retained SQLite data and rejection of a second owner | Administrator-run installation and system-domain LaunchDaemon test; GitHub App provisioning/live polling; actual reboot test |
+
+The Ubuntu installation is retained **stopped and disabled**. Its binary is at
+`/usr/local/bin/ferretta`, unit at `/etc/systemd/system/ferretta.service`, state
+at `/var/lib/ferretta`, and empty configuration directory at `/etc/ferretta`.
+After provisioning and verifying the App as the service account, enable it with
+`sudo systemctl enable --now ferretta.service`.
+
+The temporary Mac job was unloaded and removed. A user-domain test does not
+establish operation at boot or under the dedicated service account. Mac preflight
+found `/usr/local/bin` was root-only on alpaca, so the LaunchDaemon template now
+uses `/usr/local/libexec/ferretta`. Create that directory with traversal permission
+for the service account; do not relax permissions on an unrelated existing
+directory just to make the service run.
+
+No machine was rebooted. No GitHub credentials were installed, API requests made,
+model responses generated, or PR code executed during these installation tests.
+Missing App configuration was the expected polling failure. Service health and
+successful authenticated PR intake must be validated separately.
 
 ## Next execution slice
 
