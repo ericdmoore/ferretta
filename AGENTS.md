@@ -2,6 +2,8 @@
 
 Follow the development principles and intent vocabulary in README.md.
 
+Markdown-only changes do not require a pull request. Changes that also modify code or other non-Markdown files follow the normal PR workflow.
+
 ## Product boundary
 
 - Ferretta enters only after an implementation agent submits a PR. The human's earlier interaction with that agent is outside Ferretta and can use any tools or workflow.
