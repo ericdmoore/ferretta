@@ -1,4 +1,7 @@
 # ferretta
+
+<img src="assets/ferretta-icon.png" alt="A cheerful ferret crossing cables, with spread orange harness tethers forming a triangle." width="320">
+
 Ferretta (based on a "via ferrata") is a specific-harness for AI models.
 
 ## Motivating Mission
