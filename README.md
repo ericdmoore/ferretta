@@ -63,6 +63,14 @@ the conservative context admission bound after three replies. None reached the
 context, and time limits; conversation compaction remains future work. Proposal-only resumption was added
 subsequently; general interrupted-model replay remains unsupported.
 
+On September 30, the paged tools and provider-measured context prefix allowed a
+local review to complete 19 model replies, pass the configured checks, and call
+`request_intent_confirmation`. Its last reported prompt was about 31K tokens.
+The result was a **local draft question**, not LGTM or a posted comment. Its
+wording referred to a missing “change above”; the prompt now explicitly requires
+self-contained intent questions and directs concrete bugs to findings. This
+validates tool execution, not the quality of every model-generated proposal.
+
 ### Website and installation
 
 The Hugo site targets **[ferretta.cc](https://ferretta.cc/)** and serves the root

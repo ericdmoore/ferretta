@@ -713,3 +713,12 @@ func TestConfirmedRevisionAllowsIndependentTopic(t *testing.T) {
 		t.Fatal("old correction blocked new intent question", err)
 	}
 }
+
+func TestDraftInstructionsDoNotPromiseResumption(t *testing.T) {
+	p := proposalFixture(t)
+	r := Report{Status: "awaiting_intent", Proposals: []Proposal{p}}
+	var out bytes.Buffer
+	if err := PrintReport(&out, r, "text"); err != nil || !strings.Contains(out.String(), "local draft") || strings.Contains(out.String(), "then run review --resume") {
+		t.Fatal(out.String(), err)
+	}
+}

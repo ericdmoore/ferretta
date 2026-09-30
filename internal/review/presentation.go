@@ -71,7 +71,11 @@ func PrintReport(output io.Writer, report Report, format string) error {
 	case "lgtm":
 		fmt.Fprintln(&b, "Next: inspect the evidence and tradeoffs. This advisory report does not authorize merging.")
 	case "awaiting_intent":
-		fmt.Fprintln(&b, "Next: reply to the proposal, then run review --resume with the saved session directory and the same policy/repository/PR.")
+		if len(report.Proposals) > 0 && report.Proposals[len(report.Proposals)-1].Delivery == Posted {
+			fmt.Fprintln(&b, "Next: reply to the proposal, then run review --resume with the saved session directory and the same policy/repository/PR.")
+		} else {
+			fmt.Fprintln(&b, "Next: this is a local draft. Use --publish-proposals --humans LOGIN on a new review to enable posting and resumption.")
+		}
 	case "clarification_required":
 		fmt.Fprintln(&b, "Next: resolve the intent question with the human; automatic posting/resumption is not implemented.")
 	case "changes_required":

@@ -77,6 +77,7 @@ func (c CLI) runProposals(ctx context.Context, repo string, number int, p Policy
 		return fail(err)
 	}
 	defer store.Close()
+	fmt.Fprintln(stderr, "Proposal session:", dir)
 	save := func() error {
 		data, err := json.Marshal(s)
 		if err != nil {
@@ -267,7 +268,6 @@ func printManaged(report Report, dir, format string, out, stderr io.Writer) int 
 		fmt.Fprintln(stderr, err)
 		return 1
 	}
-	fmt.Fprintln(stderr, "Proposal session:", dir)
 	if err := PrintReport(out, report, format); err != nil {
 		fmt.Fprintln(stderr, err)
 		return 1
