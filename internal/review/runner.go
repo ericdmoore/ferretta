@@ -35,22 +35,24 @@ type Runner struct {
 }
 
 type Report struct {
-	Status          string    `json:"status"`
-	Summary         string    `json:"summary"`
-	Tradeoffs       []string  `json:"tradeoffs,omitempty"`
-	Findings        []Finding `json:"findings,omitempty"`
-	Question        string    `json:"question,omitempty"`
-	PR              PR        `json:"pr"`
-	MergeBase       string    `json:"merge_base"`
-	PolicySHA256    string    `json:"policy_sha256"`
-	Provider        string    `json:"provider"`
-	RequestedModel  string    `json:"requested_model"`
-	RequestedEffort string    `json:"requested_effort"`
-	EffectiveEffort *string   `json:"effective_effort"`
-	StartedAt       time.Time `json:"started_at"`
-	FinishedAt      time.Time `json:"finished_at"`
-	Attempts        []Reply   `json:"attempts"`
-	Checks          []string  `json:"checks"`
+	Status            string    `json:"status"`
+	Summary           string    `json:"summary"`
+	Tradeoffs         []string  `json:"tradeoffs,omitempty"`
+	Findings          []Finding `json:"findings,omitempty"`
+	Question          string    `json:"question,omitempty"`
+	PR                PR        `json:"pr"`
+	MergeBase         string    `json:"merge_base"`
+	PolicySHA256      string    `json:"policy_sha256"`
+	Provider          string    `json:"provider"`
+	RequestedModel    string    `json:"requested_model"`
+	RequestedEffort   string    `json:"requested_effort"`
+	RequestedThinking string    `json:"requested_thinking,omitempty"`
+	ContextTokens     int       `json:"context_tokens"`
+	EffectiveEffort   *string   `json:"effective_effort"`
+	StartedAt         time.Time `json:"started_at"`
+	FinishedAt        time.Time `json:"finished_at"`
+	Attempts          []Reply   `json:"attempts"`
+	Checks            []string  `json:"checks"`
 }
 
 var shaPattern = regexp.MustCompile(`^[0-9a-f]{40}$`)
@@ -111,6 +113,7 @@ func (r Runner) read(ctx context.Context, w Workspace, path string) ([]byte, err
 // reply/tool result; resuming persisted sessions is a separate future feature.
 func (r Runner) Review(ctx context.Context, p Policy, w Workspace, policyBytes []byte, checkpoint func(Report, []Message) error) Report {
 	report := Report{Status: "incomplete", PR: w.pr, MergeBase: w.mergeBase, PolicySHA256: fmt.Sprintf("%x", sha256.Sum256(policyBytes)), Provider: p.config.Provider, RequestedModel: p.config.Model, RequestedEffort: p.config.Effort, StartedAt: r.Now()}
+	report.RequestedThinking, report.ContextTokens = p.config.Thinking, p.config.ContextTokens
 	finish := func(reason string) Report { report.Summary = reason; report.FinishedAt = r.Now(); return report }
 	if p.config.Provider == "" || w.path == "" {
 		return finish("validated policy and prepared workspace are required")
@@ -130,6 +133,9 @@ func (r Runner) Review(ctx context.Context, p Policy, w Workspace, policyBytes [
 	messages := []Message{{Role: "system", Content: intro}, {Role: "user", Content: string(metadata) + "\n\nDiff:\n" + string(diff)}}
 	checks := CheckEvidence{}
 	for turn := 0; turn < p.config.MaxTurns; turn++ {
+		if err := checkContext(p, messages); err != nil {
+			return finish(err.Error())
+		}
 		reply, err := r.Model.Turn(ctx, p, messages)
 		if err != nil {
 			return finish(err.Error())

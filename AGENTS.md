@@ -54,3 +54,17 @@ The intent CLI inspects existing comments and emits a current snapshot, not a du
 CI uploads build artifacts. Version-tag workflows stage archives and checksums in draft GitHub releases; publication and release-test cadence remain separate decisions. Do not upload private `.ferretta/runs/` session data as build or release artifacts.
 
 Only authenticated human confirmation establishes agreed intent. Agents may author PROPOSED markers, but must not author CORRECTED or CONFIRMED markers as human decisions. Amendment semantics remain deferred.
+
+Onboarding commands are implemented: `init` probes common local inventories and
+creates only Ollama policies; `doctor` checks metadata/readiness. Neither runs
+inference, downloads models, starts services, or executes checks. Preserve existing
+policy/connection files. Discovery supplies candidates, not routing permission.
+`demo` is explicitly fictional. `model test` is separate, explicit two-turn
+inference using inert tool results; passing it does not establish review quality.
+
+Run metadata-only fixtures with `FERRETTA_TEST_MODEL_API=ollama
+FERRETTA_TEST_MODEL_ENDPOINT=http://127.0.0.1:11434
+FERRETTA_TEST_MODEL=qwen3:4b-thinking make test-network-models` (on one shell line).
+Use `compatible` for `/v1/models`. The separate inference suite requires an
+explicit absolute `FERRETTA_TEST_MODEL_POLICY` and `make test-network-model-tools`.
+Normal tests never invoke either live suite.

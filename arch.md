@@ -348,8 +348,9 @@ Markdown-heading-prefixed markers is not decided; current markers start at
 column one, and quoted/fenced examples are inert.
 
 The existing CLI provides intent inspection and a bounded single-Ollama review
-with JSON checkpoints; the separately developed `init` prototype discovers
-local endpoints and prepares an Ollama policy. The service now polls open PRs
+with JSON checkpoints. `init` now discovers local endpoints and prepares a new
+Ollama policy; `doctor`, guided App connection and readable reports support first
+review setup. `demo` is fictional and `model test` is explicit bounded inference. The service now polls open PRs
 and saves deduplicated revision observations in SQLite, with one local owner.
 These observations are inputs awaiting policy admission, not scheduled reviews.
 The DAG scheduler, spending ledger, constraint parsing, comment notifications/

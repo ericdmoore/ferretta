@@ -125,7 +125,7 @@ func TestReviewCLI(t *testing.T) {
 			}
 			code := (CLI{Runner: *r}).Run(context.Background(), []string{"--repo", "o/r", "--pr", "1", "--policy", "policy.json"}, output, &errs)
 			if mode == "success" || mode == "cleanup_failed" {
-				if code != 0 || !strings.Contains(out.String(), `"status":"lgtm"`) {
+				if code != 0 || !strings.Contains(out.String(), "LGTM — advisory review") {
 					t.Fatalf("code %d, output %s, errors %s", code, &out, &errs)
 				}
 				if strings.Contains(out.String(), "private continuation") {

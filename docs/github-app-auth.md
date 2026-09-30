@@ -7,8 +7,8 @@ repository-scoped credentials. There is no fallback to `gh`, `GH_TOKEN`,
 and help do not require credentials.
 
 This implementation supports github.com, one app/installation per process, and
-read-only review. It does not register an app, receive notifications, post
-comments, repair code, or merge PRs. The CLI remains manually invoked.
+read-only review and service intake polling. It does not register an app, post
+comments, repair code, or merge PRs. Registration remains a browser step.
 
 ## Register and install
 
@@ -16,7 +16,7 @@ comments, repair code, or merge PRs. The CLI remains manually invoked.
 2. Choose an available name (for example, `ferretta-ericdmoore`) and use
    `https://github.com/ericdmoore/ferretta` as the homepage.
 3. Leave user OAuth callbacks/device authorization unconfigured. Disable the
-   webhook for this initial polling-independent, manually invoked version.
+   webhook for the current polling/manual-review version.
 4. Grant repository **Contents: read-only** and **Pull requests: read-only**.
    Metadata read access is supplied by GitHub. No organization or account
    permissions are needed. Select installation on your account only for now.
@@ -55,7 +55,21 @@ Place the PEM there as `github-app.pem`, then restrict it:
 chmod 600 "$HOME/Library/Application Support/ferretta/github-app.pem"
 ```
 
-Create `github.json` in that directory, substituting the actual IDs:
+Prefer the guided command, which verifies access before creating configuration:
+
+```sh
+bin/ferretta auth github --setup
+bin/ferretta auth github --configure --repo ericdmoore/ferretta \
+  --client-id YOUR_APP_CLIENT_ID --installation-id 12345678 \
+  --private-key-file "$HOME/Library/Application Support/ferretta/github-app.pem"
+```
+
+Existing files are never overwritten. For another account, substitute your own
+repository and install the App there. When provisioning a boot service, set
+`FERRETTA_GITHUB_CONFIG` to its absolute service-owned path and ensure the key is
+readable by that service account. Setup does not start the service.
+
+Alternatively create `github.json` manually with the actual IDs:
 
 ```json
 {

@@ -117,6 +117,10 @@ func LoadApp(path string, client Doer, now func() time.Time) (*App, error) {
 	if decoder.Decode(&config) != nil || decoder.Decode(new(any)) != io.EOF {
 		return nil, fmt.Errorf("invalid GitHub App configuration")
 	}
+	return appFromConfig(config, client, now)
+}
+
+func appFromConfig(config AppConfig, client Doer, now func() time.Time) (*App, error) {
 	if !filepath.IsAbs(config.PrivateKeyFile) {
 		return nil, fmt.Errorf("private_key_file must be an absolute path")
 	}

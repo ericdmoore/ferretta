@@ -15,6 +15,8 @@ import (
 	"time"
 )
 
+const testModelInfo = `{"capabilities":["tools","thinking"],"details":{"family":"gptoss"},"model_info":{"general.architecture":"gptoss","gptoss.context_length":131072}}`
+
 const policyJSON = `{"provider":"ollama","endpoint":"http://127.0.0.1:11434","model":"local-model","effort":"medium","max_turns":5,"max_tokens_per_turn":4096,"timeout_seconds":60,"checks":[["make","check"]]}`
 
 var head = strings.Repeat("a", 40)
@@ -316,7 +318,7 @@ func TestOllamaProtocol(t *testing.T) {
 			t.Fatal("bad request")
 		}
 		if req.URL.Path == "/api/show" {
-			return httpResponse(200, `{"capabilities":["tools","thinking"]}`), nil
+			return httpResponse(200, testModelInfo), nil
 		}
 		var body map[string]json.RawMessage
 		if e := json.NewDecoder(req.Body).Decode(&body); e != nil {

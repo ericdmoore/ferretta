@@ -12,6 +12,14 @@ Experimental. The pure Go CLI parses intent markers, inspects existing GitHub PR
 
 The `review` command prepares an isolated workspace at exact commits, applies a trusted local repository policy, runs an Ollama tool loop, and saves model/effort provenance. Comment notifications, OpenRouter inference, posting clarification questions, and resuming after a human response are not implemented yet. Review reports are advisory and do not authorize merging.
 
+### Get a first useful review
+
+Start with `bin/ferretta demo` to see a labeled example, then use `init`,
+`auth github --setup`, and `doctor` to prepare a small, trusted PR. The
+[getting-started guide](docs/getting-started.md) covers a local Qwen 4B path,
+an explicit two-turn model test, and your first advisory review. Setup performs
+metadata discovery only; model downloads and inference are separate actions.
+
 ### Background service
 
 ```sh
@@ -72,7 +80,7 @@ bin/ferretta review --repo ericdmoore/ferretta --pr 1
 
 Use the actual open, non-draft PR number. Run from a checkout whose `origin` matches that repository. The command fetches exact head/base commits, creates a temporary detached worktree, and gives the model tools to read files, list files, run the policy's checks, and submit a verdict. The first adapter executes the configured checks directly in that worktree, so use a policy and PR code you trust to execute locally; the worktree is isolation from your checkout, not an operating-system sandbox.
 
-Exit code 0 means an advisory LGTM whose configured checks passed; code 2 means changes, clarification, or incomplete review; code 1 means a setup/output failure. The PR head and base are checked again before returning. Private session checkpoints and a report are written under `.ferretta/runs/` (ignored by Git). The public report retains requested model/effort and observed model/token usage; effective effort stays unknown unless reported by the provider. Session checkpoints preserve model continuation data and are not uploaded.
+Exit code 0 means an advisory LGTM whose configured checks passed; code 2 means changes, clarification, or incomplete review; code 1 means a setup/output failure. The PR head and base are checked again before returning. Private session checkpoints and a report are written under `.ferretta/runs/` (ignored by Git). Terminal output defaults to readable text; use `--format json` for scripts. The public report retains requested model/effort and observed model/token usage; effective effort stays unknown unless reported by the provider. Session checkpoints preserve model continuation data and are not uploaded.
 
 This first review command starts a new bounded attempt on each invocation. Checkpoint resumption and automatic PR/comment notifications are future work. It reviews the PR title/body, diff, and requested source files; confirmed intent from comment inspection is not yet integrated into the model session. Diff/tool-result size limits produce incomplete reviews rather than silently truncating evidence.
 

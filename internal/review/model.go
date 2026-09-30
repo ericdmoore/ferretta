@@ -74,33 +74,98 @@ func (o Ollama) post(ctx context.Context, policy Policy, path string, body any, 
 	return json.Unmarshal(data, result)
 }
 
-func (o Ollama) Capabilities(ctx context.Context, p Policy) error {
-	var info struct {
-		Capabilities []string `json:"capabilities"`
-		RemoteHost   string   `json:"remote_host"`
-		RemoteModel  string   `json:"remote_model"`
+type ModelInfo struct {
+	Capabilities []string `json:"capabilities"`
+	RemoteHost   string   `json:"remote_host"`
+	RemoteModel  string   `json:"remote_model"`
+	Details      struct {
+		Family string `json:"family"`
+	} `json:"details"`
+	Thinking *struct {
+		Values []json.RawMessage `json:"values"`
+	} `json:"thinking"`
+	Info map[string]json.RawMessage `json:"model_info"`
+}
+
+func (o Ollama) Info(ctx context.Context, endpoint, model string) (ModelInfo, error) {
+	if err := validateOllamaEndpoint(endpoint); err != nil {
+		return ModelInfo{}, err
 	}
-	if err := o.post(ctx, p, "/api/show", map[string]string{"model": p.config.Model}, &info); err != nil {
-		return err
+	var info ModelInfo
+	err := o.post(ctx, Policy{config: config{Provider: "ollama", Endpoint: endpoint}}, "/api/show", map[string]string{"model": model}, &info)
+	return info, err
+}
+
+func (info ModelInfo) thinkingValues() []string {
+	if info.Thinking != nil {
+		var values []string
+		for _, raw := range info.Thinking.Values {
+			switch strings.TrimSpace(string(raw)) {
+			case "true":
+				values = append(values, "enabled")
+			case `"low"`:
+				values = append(values, "low")
+			case `"medium"`:
+				values = append(values, "medium")
+			case `"high"`:
+				values = append(values, "high")
+			}
+		}
+		return values
 	}
+	// Explicit compatibility for older Ollama releases without thinking metadata.
+	// Never guess from a model name or treat an unknown family as compatible.
+	switch info.Details.Family {
+	case "gptoss":
+		return []string{"low", "medium", "high"}
+	case "qwen3":
+		return []string{"enabled"}
+	}
+	return nil
+}
+
+func (info ModelInfo) validate(p Policy) error {
 	if info.RemoteHost != "" || info.RemoteModel != "" {
 		return fmt.Errorf("local-only policy rejects a remotely hosted model")
 	}
 	if !slices.Contains(info.Capabilities, "tools") || !slices.Contains(info.Capabilities, "thinking") {
 		return fmt.Errorf("model must support tools and thinking")
 	}
+	requested := p.config.Effort
+	if p.config.Thinking == "enabled" {
+		requested = "enabled"
+	}
+	if !slices.Contains(info.thinkingValues(), requested) {
+		return fmt.Errorf("model does not establish support for requested thinking setting; choose a supported setting or update Ollama")
+	}
+	var architecture string
+	var limit int
+	if json.Unmarshal(info.Info["general.architecture"], &architecture) != nil || architecture == "" || json.Unmarshal(info.Info[architecture+".context_length"], &limit) != nil || limit < p.config.ContextTokens {
+		return fmt.Errorf("model context capacity is unknown or below context_tokens")
+	}
 	return nil
 }
 
+func (o Ollama) Capabilities(ctx context.Context, p Policy) error {
+	info, err := o.Info(ctx, p.config.Endpoint, p.config.Model)
+	if err != nil {
+		return err
+	}
+	return info.validate(p)
+}
+
 func (o Ollama) Turn(ctx context.Context, p Policy, messages []Message) (Reply, error) {
+	if err := checkContext(p, messages); err != nil {
+		return Reply{}, err
+	}
 	var reply Reply
-	body := map[string]any{"model": p.config.Model, "messages": messages, "stream": false, "think": p.config.Effort, "tools": tools,
-		"options": map[string]any{"num_predict": p.config.MaxTokens, "num_ctx": 65536}}
+	body := map[string]any{"model": p.config.Model, "messages": messages, "stream": false, "think": p.thinkValue(), "tools": tools,
+		"options": map[string]any{"num_predict": p.config.MaxTokens, "num_ctx": p.config.ContextTokens}}
 	if err := o.post(ctx, p, "/api/chat", body, &reply); err != nil {
 		return Reply{}, err
 	}
 	if !reply.Done || reply.Message.Role != "assistant" || reply.Model == "" || reply.DoneReason == "length" {
-		return Reply{}, fmt.Errorf("model response is incomplete")
+		return Reply{}, fmt.Errorf("model response is incomplete (done=%t, reason=%q, output_tokens=%d)", reply.Done, reply.DoneReason, reply.OutputTokens)
 	}
 	return reply, nil
 }

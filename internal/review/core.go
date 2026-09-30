@@ -15,7 +15,9 @@ type config struct {
 	Provider       string     `json:"provider"`
 	Endpoint       string     `json:"endpoint"`
 	Model          string     `json:"model"`
-	Effort         string     `json:"effort"`
+	Effort         string     `json:"effort,omitempty"`
+	Thinking       string     `json:"thinking,omitempty"`
+	ContextTokens  int        `json:"context_tokens,omitempty"`
 	MaxTurns       int        `json:"max_turns"`
 	MaxTokens      int        `json:"max_tokens_per_turn"`
 	TimeoutSeconds int        `json:"timeout_seconds"`
@@ -36,15 +38,20 @@ func ParsePolicy(data []byte) (Policy, error) {
 	if err := decoder.Decode(&extra); err != io.EOF {
 		return Policy{}, fmt.Errorf("policy must contain exactly one JSON value")
 	}
-	u, err := url.Parse(c.Endpoint)
-	if err != nil || u.Scheme != "http" || (u.Hostname() != "127.0.0.1" && u.Hostname() != "localhost" && u.Hostname() != "::1") || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
-		return Policy{}, fmt.Errorf("local Ollama endpoint must be an HTTP loopback URL")
+	if err := validateOllamaEndpoint(c.Endpoint); err != nil {
+		return Policy{}, err
 	}
 	if c.Provider != "ollama" || strings.TrimSpace(c.Model) == "" {
 		return Policy{}, fmt.Errorf("an explicit Ollama model is required")
 	}
-	if c.Effort != "low" && c.Effort != "medium" && c.Effort != "high" {
-		return Policy{}, fmt.Errorf("effort must be low, medium, or high")
+	if !((c.Thinking == "enabled" && c.Effort == "") || (c.Thinking == "" && (c.Effort == "low" || c.Effort == "medium" || c.Effort == "high"))) {
+		return Policy{}, fmt.Errorf("select thinking: enabled OR effort: low, medium, high")
+	}
+	if c.ContextTokens == 0 {
+		c.ContextTokens = 65536
+	} // Preserve existing policies.
+	if c.ContextTokens < 8192 || c.ContextTokens > 131072 || c.MaxTokens+2048 >= c.ContextTokens {
+		return Policy{}, fmt.Errorf("context_tokens must be 8192–131072 with room for input and output")
 	}
 	if c.MaxTurns < 1 || c.MaxTurns > 30 || c.MaxTokens < 256 || c.MaxTokens > 16384 || c.TimeoutSeconds < 1 || c.TimeoutSeconds > 3600 {
 		return Policy{}, fmt.Errorf("invalid review resource limits")
@@ -58,6 +65,34 @@ func ParsePolicy(data []byte) (Policy, error) {
 		}
 	}
 	return Policy{config: c}, nil
+}
+
+func validateOllamaEndpoint(endpoint string) error {
+	u, err := url.Parse(endpoint)
+	if err != nil || u.Scheme != "http" || (u.Hostname() != "127.0.0.1" && u.Hostname() != "localhost" && u.Hostname() != "::1") || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
+		return fmt.Errorf("local Ollama endpoint must be an HTTP loopback URL")
+	}
+	return nil
+}
+
+func (p Policy) thinkValue() any {
+	if p.config.Thinking == "enabled" {
+		return true
+	}
+	return p.config.Effort
+}
+
+// Bound context conservatively using encoded bytes plus a framing reserve.
+// This is an input admission bound, not a measurement of provider token usage.
+func checkContext(p Policy, messages []Message) error {
+	data, err := json.Marshal(messages)
+	if err != nil {
+		return err
+	}
+	if len(data)+len(tools)+1024+p.config.MaxTokens > p.config.ContextTokens {
+		return fmt.Errorf("review exceeds configured context limit; choose a smaller PR or explicitly increase context_tokens")
+	}
+	return nil
 }
 
 type Finding struct {

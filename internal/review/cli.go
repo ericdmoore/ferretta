@@ -3,7 +3,6 @@ package review
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -12,6 +11,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"time"
+
+	"github.com/ericdmoore/ferretta/internal/github"
 )
 
 type Process struct {
@@ -31,18 +32,23 @@ func (Process) Run(ctx context.Context, dir, name string, args ...string) ([]byt
 	return stdout.Bytes(), nil
 }
 
-type CLI struct{ Runner Runner }
+type CLI struct {
+	Runner Runner
+	Setup  Setup
+}
 
 type GitHubConnection interface {
 	PullRequests
 	Token(context.Context, string) (string, error)
+	Status(context.Context, string) (github.Identity, error)
 }
 
 func NewCLI(connection GitHubConnection) CLI {
 	process := Process{Credentials: connection.Token}
-	return CLI{Runner: Runner{Exec: process, GitHub: connection, Fetch: process.Fetch, Model: Ollama{HTTP: &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
 		return fmt.Errorf("local model redirects are not permitted")
-	}}}, Now: time.Now}}
+	}}
+	return CLI{Runner: Runner{Exec: process, GitHub: connection, Fetch: process.Fetch, Model: Ollama{HTTP: client}, Now: time.Now}, Setup: Setup{HTTP: client, Exec: process, Auth: connection.Status}}
 }
 
 func (c CLI) Run(ctx context.Context, args []string, output, stderr io.Writer) int {
@@ -52,10 +58,11 @@ func (c CLI) Run(ctx context.Context, args []string, output, stderr io.Writer) i
 	repo := flags.String("repo", "", "GitHub owner/repository")
 	number := flags.Int("pr", 0, "submitted PR number")
 	policyPath := flags.String("policy", ".ferretta/review.json", "trusted local review policy")
+	format := flags.String("format", "text", "text or json")
 	if err := flags.Parse(args); err != nil {
 		return 1
 	}
-	if flags.NArg() != 0 || *repo == "" || *number <= 0 {
+	if flags.NArg() != 0 || *repo == "" || *number <= 0 || (*format != "text" && *format != "json") {
 		return fail(fmt.Errorf("review requires --repo owner/repository and --pr N"))
 	}
 	data, err := os.ReadFile(*policyPath)
@@ -115,7 +122,7 @@ func (c CLI) Run(ctx context.Context, args []string, output, stderr io.Writer) i
 	if err := Save(filepath.Join(runDir, "report.json"), report); err != nil {
 		return fail(err)
 	}
-	if err := json.NewEncoder(output).Encode(report); err != nil {
+	if err := PrintReport(output, report, *format); err != nil {
 		return fail(err)
 	}
 	fmt.Fprintln(stderr, "Review report:", filepath.Join(runDir, "report.json"))
@@ -123,4 +130,8 @@ func (c CLI) Run(ctx context.Context, args []string, output, stderr io.Writer) i
 		return 2
 	}
 	return 0
+}
+
+func (c CLI) Init(ctx context.Context, args []string, input io.Reader, output, stderr io.Writer) int {
+	return c.Setup.Run(ctx, args, input, output, stderr)
 }
