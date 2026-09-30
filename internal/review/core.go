@@ -3,6 +3,7 @@ package review
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -25,7 +26,18 @@ type config struct {
 }
 
 // Policy can only be populated by validation. Its zero value is unusable.
-type Policy struct{ config config }
+type Policy struct {
+	config      config
+	observation *ContextObservation
+}
+
+// ContextObservation binds provider-reported prompt usage to an immutable
+// message prefix. Subsequent messages are conservatively bounded by bytes.
+type ContextObservation struct {
+	MessageCount int    `json:"message_count"`
+	PromptTokens int    `json:"prompt_tokens"`
+	ToolSchema   string `json:"tool_schema"`
+}
 
 func ParsePolicy(data []byte) (Policy, error) {
 	var c config
@@ -50,10 +62,10 @@ func ParsePolicy(data []byte) (Policy, error) {
 	if c.ContextTokens == 0 {
 		c.ContextTokens = 65536
 	} // Preserve existing policies.
-	if c.ContextTokens < 8192 || c.ContextTokens > 131072 || c.MaxTokens+2048 >= c.ContextTokens {
-		return Policy{}, fmt.Errorf("context_tokens must be 8192–131072 with room for input and output")
+	if c.ContextTokens < 8192 || c.MaxTokens >= c.ContextTokens-2048 {
+		return Policy{}, fmt.Errorf("context_tokens must be at least 8192 with room for input and output")
 	}
-	if c.MaxTurns < 1 || c.MaxTurns > 200 || c.MaxTokens < 256 || c.MaxTokens > 16384 || c.TimeoutSeconds < 1 || c.TimeoutSeconds > 3600 {
+	if c.MaxTurns < 0 || c.MaxTokens < 256 || c.TimeoutSeconds < 0 || c.TimeoutSeconds > 2147483647 {
 		return Policy{}, fmt.Errorf("invalid review resource limits")
 	}
 	if len(c.Checks) == 0 {
@@ -82,14 +94,30 @@ func (p Policy) thinkValue() any {
 	return p.config.Effort
 }
 
-// Bound context conservatively using encoded bytes plus a framing reserve.
-// This is an input admission bound, not a measurement of provider token usage.
+// Bound new input by encoded bytes plus framing. Where available, use the
+// provider count for the unchanged prefix, rather than recounting it as bytes.
 func checkContext(p Policy, messages []Message) error {
 	data, err := json.Marshal(messages)
 	if err != nil {
 		return err
 	}
-	if len(data)+len(tools)+1024+p.config.MaxTokens > p.config.ContextTokens {
+	used := len(data) + len(tools)
+	if p.observation != nil {
+		anchor := p.observation
+		if anchor.MessageCount < 0 || anchor.MessageCount > len(messages) || anchor.PromptTokens <= 0 {
+			return fmt.Errorf("invalid context observation")
+		}
+		// The full marshal above still validates all continuation data. The model's
+		// prompt count already includes the prior tools/template/message prefix.
+		suffix, _ := json.Marshal(messages[anchor.MessageCount:])
+		if anchor.ToolSchema == fmt.Sprintf("%x", sha256.Sum256(tools)) {
+			if anchor.PromptTokens > p.config.ContextTokens {
+				return fmt.Errorf("reported prompt exceeds configured context limit")
+			}
+			used = anchor.PromptTokens + len(suffix)
+		}
+	}
+	if used+1024+p.config.MaxTokens > p.config.ContextTokens {
 		return fmt.Errorf("review exceeds configured context limit; choose a smaller PR or explicitly increase context_tokens")
 	}
 	return nil
@@ -110,7 +138,13 @@ type candidate struct {
 }
 
 type Command interface{ command() }
-type ReadFile struct{ path string }
+type ReadFile struct {
+	path       string
+	start, end int
+}
+type ReadDiff struct{ start, end int }
+
+func (ReadDiff) command() {}
 
 func (ReadFile) command() {}
 
@@ -141,17 +175,37 @@ func Plan(name string, arguments json.RawMessage) (Command, error) {
 		return nil
 	}
 	switch name {
-	case "read_file":
+	case "request_intent_confirmation":
+		var request ProposalRequest
+		if err := decode(&request); err != nil {
+			return nil, err
+		}
+		if err := request.validate(); err != nil {
+			return nil, err
+		}
+		return RequestIntent{request: request}, nil
+	case "read_file", "read_diff":
 		var args struct {
-			Path string `json:"path"`
+			Path  string `json:"path"`
+			Start int    `json:"start_line,omitempty"`
+			End   int    `json:"end_line,omitempty"`
 		}
 		if err := decode(&args); err != nil {
 			return nil, err
 		}
+		if args.Start < 0 || args.End < 0 || (args.End > 0 && args.End < args.Start) {
+			return nil, fmt.Errorf("line range must be positive and ordered")
+		}
+		if name == "read_diff" {
+			if args.Path != "" {
+				return nil, fmt.Errorf("read_diff does not accept a path")
+			}
+			return ReadDiff{start: args.Start, end: args.End}, nil
+		}
 		if !fs.ValidPath(args.Path) || args.Path == "." {
 			return nil, fmt.Errorf("read_file requires a repository-relative file path")
 		}
-		return ReadFile{path: args.Path}, nil
+		return ReadFile{path: args.Path, start: args.Start, end: args.End}, nil
 	case "list_files", "run_checks":
 		if err := decode(&struct{}{}); err != nil {
 			return nil, err

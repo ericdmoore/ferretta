@@ -66,7 +66,11 @@ func (c CLI) Probe(ctx context.Context, args []string, output, stderr io.Writer)
 	if err != nil {
 		return fail(err)
 	}
-	ctx, cancel := context.WithTimeout(ctx, min(time.Duration(p.config.TimeoutSeconds)*time.Second, 2*time.Minute))
+	duration := 2 * time.Minute
+	if p.config.TimeoutSeconds > 0 {
+		duration = min(time.Duration(p.config.TimeoutSeconds)*time.Second, duration)
+	}
+	ctx, cancel := context.WithTimeout(ctx, duration)
 	defer cancel()
 	replies, err := Probe(ctx, c.Runner.Model, p)
 	if err != nil {

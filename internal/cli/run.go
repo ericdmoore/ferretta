@@ -212,7 +212,7 @@ func RunWithReviewer(ctx context.Context, args []string, input io.Reader, output
 const githubSetupGuide = `Connect Ferretta using its own GitHub App identity:
 1. Register an App: https://github.com/settings/apps/new
    Choose an available name, set a homepage, disable webhooks, and leave user OAuth unconfigured.
-   Repository permissions: Contents read-only and Pull requests read-only.
+   Repository permissions: Contents read-only and Pull requests read/write for proposal posting (read-only suffices for inspection).
 2. Install the App on your account, selecting only the repository you want reviewed.
 3. Copy the App client ID and installation ID. Generate/download its private key.
    Put the key outside the repository in a private directory, using chmod 600 on the file.

@@ -33,8 +33,9 @@ func (Process) Run(ctx context.Context, dir, name string, args ...string) ([]byt
 }
 
 type CLI struct {
-	Runner Runner
-	Setup  Setup
+	Runner    Runner
+	Setup     Setup
+	Proposals ProposalGitHub
 }
 
 type GitHubConnection interface {
@@ -48,7 +49,8 @@ func NewCLI(connection GitHubConnection) CLI {
 	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
 		return fmt.Errorf("local model redirects are not permitted")
 	}}
-	return CLI{Runner: Runner{Exec: process, GitHub: connection, Fetch: process.Fetch, Model: Ollama{HTTP: client}, Now: time.Now}, Setup: Setup{HTTP: client, Exec: process, Auth: connection.Status}}
+	proposals, _ := connection.(ProposalGitHub)
+	return CLI{Proposals: proposals, Runner: Runner{Exec: process, GitHub: connection, Fetch: process.Fetch, Model: Ollama{HTTP: client}, Now: time.Now}, Setup: Setup{HTTP: client, Exec: process, Auth: connection.Status}}
 }
 
 func (c CLI) Run(ctx context.Context, args []string, output, stderr io.Writer) int {
@@ -58,6 +60,9 @@ func (c CLI) Run(ctx context.Context, args []string, output, stderr io.Writer) i
 	repo := flags.String("repo", "", "GitHub owner/repository")
 	number := flags.Int("pr", 0, "submitted PR number")
 	policyPath := flags.String("policy", ".ferretta/review.json", "trusted local review policy")
+	publish := flags.Bool("publish-proposals", false, "post intent proposals through the GitHub App and checkpoint for resumption")
+	humans := flags.String("humans", "", "comma-separated allowlisted human logins; pinned in a new proposal session")
+	resume := flags.String("resume", "", "resume/poll a durable proposal session directory")
 	format := flags.String("format", "text", "text or json")
 	if err := flags.Parse(args); err != nil {
 		return 1
@@ -73,7 +78,13 @@ func (c CLI) Run(ctx context.Context, args []string, output, stderr io.Writer) i
 	if err != nil {
 		return fail(err)
 	}
-	ctx, cancel := context.WithTimeout(ctx, time.Duration(policy.config.TimeoutSeconds)*time.Second)
+	if *publish || *resume != "" {
+		return c.runProposals(ctx, *repo, *number, policy, data, *humans, *resume, *format, output, stderr)
+	}
+	if *humans != "" {
+		return fail(fmt.Errorf("--humans requires --publish-proposals"))
+	}
+	ctx, cancel := reviewContext(ctx, policy)
 	defer cancel()
 	pr, err := c.Runner.PR(ctx, *repo, *number)
 	if err != nil {
@@ -134,4 +145,11 @@ func (c CLI) Run(ctx context.Context, args []string, output, stderr io.Writer) i
 
 func (c CLI) Init(ctx context.Context, args []string, input io.Reader, output, stderr io.Writer) int {
 	return c.Setup.Run(ctx, args, input, output, stderr)
+}
+
+func reviewContext(ctx context.Context, p Policy) (context.Context, context.CancelFunc) {
+	if p.config.TimeoutSeconds == 0 {
+		return context.WithCancel(ctx)
+	}
+	return context.WithTimeout(ctx, time.Duration(p.config.TimeoutSeconds)*time.Second)
 }

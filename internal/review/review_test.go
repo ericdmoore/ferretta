@@ -38,7 +38,7 @@ func TestPolicyBoundary(t *testing.T) {
 	for _, bad := range []string{
 		`{`, policyJSON + ` {}`, policyJSON + ` garbage`, strings.Replace(policyJSON, `"provider":"ollama"`, `"provider":"hosted"`, 1),
 		strings.Replace(policyJSON, `"medium"`, `"unlimited"`, 1), strings.Replace(policyJSON, `"local-model"`, `""`, 1),
-		strings.Replace(policyJSON, `"max_turns":5`, `"max_turns":0`, 1), strings.Replace(policyJSON, `"checks":[["make","check"]]`, `"checks":[]`, 1),
+		strings.Replace(policyJSON, `"max_turns":5`, `"max_turns":-1`, 1), strings.Replace(policyJSON, `"checks":[["make","check"]]`, `"checks":[]`, 1),
 		strings.Replace(policyJSON, `"checks":[["make","check"]]`, `"checks":[[]]`, 1), strings.Replace(policyJSON, `"provider"`, `"unknown"`, 1),
 	} {
 		if _, e := ParsePolicy([]byte(bad)); e == nil {
@@ -282,9 +282,9 @@ func TestReviewFailureOutcomes(t *testing.T) {
 			t.Fatal(got)
 		}
 	}
-	r := runner(&fakeModel{replies: []Reply{reply("read_file", `{"path":"large.txt"}`)}})
+	r := runner(&fakeModel{replies: []Reply{reply("list_files", `{}`)}})
 	r.Exec = commandFunc(func(c context.Context, d, n string, a ...string) ([]byte, error) {
-		if a[0] == "show" {
+		if a[0] == "ls-tree" {
 			return []byte(strings.Repeat("x", 64001)), nil
 		}
 		return defaultExec(c, d, n, a...)
@@ -388,13 +388,13 @@ func TestSave(t *testing.T) {
 }
 
 func TestReviewTurnAllowance(t *testing.T) {
-	for _, turns := range []int{1, 100, 200} {
+	for _, turns := range []int{0, 1, 100, 200, 1000} {
 		data := strings.Replace(policyJSON, `"max_turns":5`, fmt.Sprintf(`"max_turns":%d`, turns), 1)
 		if p, err := ParsePolicy([]byte(data)); err != nil || p.config.MaxTurns != turns {
 			t.Fatal(turns, err)
 		}
 	}
-	for _, turns := range []int{-1, 0, 201} {
+	for _, turns := range []int{-1, -100} {
 		data := strings.Replace(policyJSON, `"max_turns":5`, fmt.Sprintf(`"max_turns":%d`, turns), 1)
 		if _, err := ParsePolicy([]byte(data)); err == nil {
 			t.Fatal("invalid turn allowance accepted", turns)

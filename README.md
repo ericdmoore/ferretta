@@ -20,18 +20,20 @@ amd64/arm64 with CGO disabled.
 | --- | --- |
 | Local PR review | A bounded Ollama tool loop reads exact commits, executes trusted checks in a detached worktree, and produces an advisory report. |
 | Review provenance | Records head/base commits, policy hash, requested model/thinking settings, and provider-reported details when available. |
-| GitHub identity | Uses a dedicated GitHub App installation. Current tokens are read-only and scoped to the requested repository. |
+| GitHub identity | Uses a dedicated GitHub App installation. Fetch tokens are read-only; proposal posting uses separate repository-scoped comment-write tokens. |
 | Setup | `init` discovers local model metadata and creates an Ollama policy; `doctor` checks readiness. Downloads and inference are explicit, separate actions. |
-| Intent inspection | Parses and inspects existing proposal/correction/confirmation comments. Confirmed comment intent is not yet integrated into review sessions. |
+| Intent inspection | Parses and inspects existing proposal/correction/confirmation comments. Proposal sessions retain authenticated human correction/confirmation evidence. |
 | Background service | Polls open PR revisions into durable SQLite storage. Automatic review dispatch is not implemented. |
 
 Reviews can produce findings, an intent question, an advisory LGTM, or an
 incomplete result when checks, context, or resource limits prevent completion.
-Reports and private session checkpoints are saved locally. Ferretta does not yet
-post comments, resume a review after a human reply, push repairs, or merge PRs.
+Reports and private session checkpoints are saved locally. Opt-in [proposal
+sessions](docs/proposals.md) post questions through the GitHub App and resume
+through explicit polling after human replies. Ferretta does not yet push repairs
+or merge PRs.
 
-The next stages are a durable review dispatcher, human clarification and
-resumption, policy-selected model waves and fallbacks, resource accounting,
+The next stages are a durable review dispatcher, automatic reply notification,
+policy-selected model waves and fallbacks, resource accounting,
 OpenRouter inference, and gated repairs/merging. The agreed configuration layers
 and cost/time/quality objectives are described in [configuration decisions](docs/configuration.md)
 and [architecture](arch.md); the layered TOML resolver is not implemented.
@@ -58,7 +60,8 @@ allowance in a single response, and a retry with 16,384 output tokens stopped at
 the conservative context admission bound after three replies. None reached the
 100-turn ceiling or produced a verdict. New setup policies now allow 100 turns;
 `init --max-turns N` accepts 1–200. More turns do not remove independent output,
-context, and time limits; conversation compaction/resumption remains future work.
+context, and time limits; conversation compaction remains future work. Proposal-only resumption was added
+subsequently; general interrupted-model replay remains unsupported.
 
 ### Website and installation
 
@@ -146,7 +149,7 @@ Use the actual open, non-draft PR number. Run from a checkout whose `origin` mat
 
 Exit code 0 means an advisory LGTM whose configured checks passed; code 2 means changes, clarification, or incomplete review; code 1 means a setup/output failure. The PR head and base are checked again before returning. Private session checkpoints and a report are written under `.ferretta/runs/` (ignored by Git). Terminal output defaults to readable text; use `--format json` for scripts. The public report retains requested model/effort and observed model/token usage; effective effort stays unknown unless reported by the provider. Session checkpoints preserve model continuation data and are not uploaded.
 
-This first review command starts a new bounded attempt on each invocation. Checkpoint resumption and automatic PR/comment notifications are future work. It reviews the PR title/body, diff, and requested source files; confirmed intent from comment inspection is not yet integrated into the model session. Diff/tool-result size limits produce incomplete reviews rather than silently truncating evidence.
+Ordinary review invocations start new attempts. `--publish-proposals --humans YOUR_LOGIN` enables durable proposal posting, and `--resume PATH` polls for human replies and continues the saved conversation. Reviews use PR metadata, a diff summary, and paged diff/source tools. Automatic notifications and general interrupted-model replay remain future work. See [proposal sessions](docs/proposals.md).
 
 ### Development
 

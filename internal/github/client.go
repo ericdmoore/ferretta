@@ -1,4 +1,5 @@
-// Package github reads GitHub evidence. It never posts or modifies comments.
+// Package github reads GitHub evidence. The App adapter separately supports
+// explicit proposal comment creation; the read client never mutates comments.
 package github
 
 import (

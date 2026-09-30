@@ -353,9 +353,11 @@ Ollama policy; `doctor`, guided App connection and readable reports support firs
 review setup. `demo` is fictional and `model test` is explicit bounded inference. The service now polls open PRs
 and saves deduplicated revision observations in SQLite, with one local owner.
 These observations are inputs awaiting policy admission, not scheduled reviews.
-The DAG scheduler, spending ledger, constraint parsing, comment notifications/
-resumption, objective routing, repair waves, and automated merging remain to be
-implemented. The runtime projects
+Opt-in proposal sessions now persist conversations and human decisions in SQLite,
+post through the GitHub App, and resume through explicit single-poll commands.
+The DAG scheduler, spending ledger, constraint parsing, automatic comment
+notifications, objective routing, repair waves, and automated merging remain to
+be implemented. The runtime projects
 surveyed during design are references; none has been adopted as a dependency.
 
 ## 14. Service lifecycle and unattended credentials
@@ -373,8 +375,8 @@ than creating another scheduler. The first slice offers static watch arguments
 and read-only status; it does not yet implement the control socket.
 
 Poll GitHub first, avoiding a required public webhook endpoint. Polling open PRs
-is implemented; human-reply intake and checkpoint resumption are subsequent
-slices. OS ownership locks apply only to the same local state directory, not to
+is implemented. Proposal sessions support manual human-reply polling and
+resumption; automatic service dispatch/reply polling remain subsequent slices. OS ownership locks apply only to the same local state directory, not to
 independent stores or machines. Do not put this store on a network filesystem.
 
 Recovery must preserve spending, human waits, hard stops and uncertain external

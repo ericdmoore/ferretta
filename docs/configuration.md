@@ -70,10 +70,10 @@ It does not yet save layered user defaults or TOML. Existing files are preserved
 | --- | --- |
 | `provider`, `endpoint`, `model` | Explicit `ollama` route at an HTTP loopback endpoint and installed model ID |
 | `thinking` or `effort` | Exactly one: `thinking: "enabled"` for boolean controls, or `effort: "low"`, `"medium"`, `"high"` for named controls |
-| `context_tokens` | 8,192–131,072; new setup defaults to 16,384; omitted legacy field remains 65,536 |
-| `max_turns` | 1–200; setup uses 100; counts model responses, not review/repair cycles |
-| `max_tokens_per_turn` | 256–16,384; setup uses 4,096; must leave input room in context |
-| `timeout_seconds` | 1–3,600; setup uses 600 |
+| `context_tokens` | At least 8,192, bounded by provider-reported model capacity; setup defaults to 16,384; omitted legacy field remains 65,536 |
+| `max_turns` | Nonnegative; 0 disables the turn ceiling; setup uses 100; counts model responses across resumed segments |
+| `max_tokens_per_turn` | At least 256; setup uses 4,096; must leave at least 2,048 tokens of input room in context |
+| `timeout_seconds` | Nonnegative seconds; 0 disables the deadline; setup uses 600; proposal sessions exclude human waiting |
 | `checks` | Nonempty list of command argument arrays; trusted operator-selected commands |
 
 Unknown fields, contradictory thinking controls and invalid limits are rejected.
@@ -82,5 +82,26 @@ context capacity. Older Ollama versions lacking control metadata have explicit
 compatibility for GPT-OSS named effort and Qwen3 boolean thinking; other unknown
 controls are rejected. Remote-model metadata is rejected by the local-only route.
 Requested settings remain separate from provider-reported execution details.
-The context admission check conservatively counts encoded input bytes plus a
-framing reserve and output allowance; it is not a measured tokenizer count.
+The context admission check uses Ollama-reported prompt tokens for the unchanged
+message prefix when available, plus encoded bytes for newly appended messages,
+a framing reserve and output allowance. Before a usage observation, the complete
+input is conservatively bounded by bytes. It is not an exact local tokenizer.
+
+
+For local exploration, this repository's policy selects `gpt-oss:20b`, medium
+requested effort, 131,072 context tokens, 16,384 output tokens per reply, and no
+turn/deadline ceiling. These are explicit repository choices; `init` still ships
+bounded defaults. Cancellation remains available. Context capacity, required
+checks, human identity and valid tool arguments remain enforced.
+
+Setup exposes `--max-turns`, `--max-output-tokens`, `--timeout`, and `--context`.
+For example, `--max-turns 0 --timeout 0 --context 131072
+--max-output-tokens 16384` creates a more permissive local policy. Existing
+policies are never overwritten. Provider prompt counts anchor context admission; unseen additions retain a
+conservative byte bound. Paged evidence reduces input growth;
+automatic compaction is not implemented.
+
+Proposal posting is an operator-selected effect: `review --publish-proposals
+--humans login1,login2`. The allowlist is pinned in the private SQLite session.
+`review --resume /absolute/session/path` polls for human replies using the same
+repository, PR, policy and GitHub App. See [proposal sessions](proposals.md).

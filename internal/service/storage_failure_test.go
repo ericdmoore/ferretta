@@ -76,3 +76,61 @@ func TestInitializationFailureReleasesOwner(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestReviewCheckpointMigrationAndOwnership(t *testing.T) {
+	s, dir := openTestStore(t)
+	// Simulate a real v1 intake database and migrate it without losing intake.
+	record(t, s, snapshot(t, "o/r", []github.PullRequest{testPR(1)}, testTime))
+	if _, err := s.db.Exec("DROP TABLE review_session; PRAGMA user_version=1"); err != nil {
+		t.Fatal(err)
+	}
+	s.Close()
+	s, err := OpenStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	ctx := context.Background()
+	if err := s.SaveReview(ctx, "run-1", []byte("waiting")); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SaveReview(ctx, "run-1", []byte("confirmed")); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SaveReview(ctx, "run-2", []byte("other")); err != nil {
+		t.Fatal(err)
+	}
+	data, err := s.Review(ctx, "run-1")
+	if err != nil || string(data) != "confirmed" {
+		t.Fatal(string(data), err)
+	}
+	if _, err := s.Review(ctx, "missing"); err == nil {
+		t.Fatal("invented missing session")
+	}
+	if _, err := OpenStore(dir); err == nil {
+		t.Fatal("concurrent owner accepted")
+	}
+	status, err := ReadStatus(ctx, dir)
+	if err != nil || len(status.Candidates) != 1 {
+		t.Fatal(status, err)
+	}
+	s.Close()
+	if err := s.SaveReview(ctx, "run-1", nil); err == nil {
+		t.Fatal("closed store succeeded")
+	}
+	if _, err := s.Review(ctx, "run-1"); err == nil {
+		t.Fatal("closed store read succeeded")
+	}
+	// Partial migration must roll back, retaining v1 rather than hiding damage.
+	s, err = OpenStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.db.Exec("PRAGMA user_version=1"); err != nil {
+		t.Fatal(err)
+	}
+	s.Close()
+	if _, err := OpenStore(dir); err == nil {
+		t.Fatal("conflicting migration succeeded")
+	}
+}

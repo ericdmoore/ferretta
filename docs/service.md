@@ -39,7 +39,8 @@ snapshots visible with their old timestamps. GitHub pagination is not atomic;
 future dispatch must refetch the exact revision and resolve trusted policy.
 Observation IDs do not include policy and must not be reused as review node IDs.
 
-Schema version 1 uses the CGO-free `modernc.org/sqlite` driver. The state directory
+Schema version 2 adds a private proposal-session table, migrating version 1
+transactionally while retaining intake records. The store uses the CGO-free `modernc.org/sqlite` driver. The state directory
 must be mode 0700, database mode 0600. WAL files are private within that directory.
 Never delete `owner.lock` while an owner runs; the kernel releases its lock on exit.
 Back up the database using a consistent SQLite backup or with the service stopped,

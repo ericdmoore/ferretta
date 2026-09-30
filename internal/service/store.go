@@ -84,13 +84,13 @@ func (s *Store) open(dir string) error {
 	if err := s.db.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
 		return err
 	}
-	if version != 0 && version != 1 {
+	if version < 0 || version > 2 {
 		return fmt.Errorf("unsupported state schema %d", version)
 	}
 	if _, err := s.db.Exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;"); err != nil {
 		return err
 	}
-	if version == 1 {
+	if version == 2 {
 		return nil
 	}
 	tx, err := s.db.Begin()
@@ -98,7 +98,12 @@ func (s *Store) open(dir string) error {
 		return err
 	}
 	defer tx.Rollback()
-	if _, err := tx.Exec(schema); err != nil {
+	if version == 0 {
+		if _, err := tx.Exec(schema); err != nil {
+			return err
+		}
+	}
+	if _, err := tx.Exec(`CREATE TABLE review_session (id TEXT PRIMARY KEY, data BLOB NOT NULL); PRAGMA user_version=2;`); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -195,7 +200,7 @@ func ReadStatus(ctx context.Context, dir string) (Status, error) {
 	if err := tx.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
 		return Status{}, err
 	}
-	if version != 1 {
+	if version != 1 && version != 2 {
 		return Status{}, fmt.Errorf("unsupported state schema %d", version)
 	}
 	result := Status{Mode: "intake-only", Polls: []Poll{}, Candidates: []Revision{}}
@@ -243,4 +248,16 @@ func ReadStatus(ctx context.Context, dir string) (Status, error) {
 		result.Candidates = append(result.Candidates, r)
 	}
 	return result, rows.Err()
+}
+
+// SaveReview commits the complete private review checkpoint atomically. The
+// store lock serializes both review execution and uncertain GitHub effects.
+func (s *Store) SaveReview(ctx context.Context, id string, data []byte) error {
+	_, err := s.db.ExecContext(ctx, "INSERT INTO review_session VALUES(?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data", id, data)
+	return err
+}
+func (s *Store) Review(ctx context.Context, id string) ([]byte, error) {
+	var data []byte
+	err := s.db.QueryRowContext(ctx, "SELECT data FROM review_session WHERE id=?", id).Scan(&data)
+	return data, err
 }

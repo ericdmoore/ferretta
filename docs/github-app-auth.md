@@ -7,8 +7,8 @@ repository-scoped credentials. There is no fallback to `gh`, `GH_TOKEN`,
 and help do not require credentials.
 
 This implementation supports github.com, one app/installation per process, and
-read-only review and service intake polling. It does not register an app, post
-comments, repair code, or merge PRs. Registration remains a browser step.
+review and service intake polling, plus opt-in proposal comment posting. It does
+not register an app, repair code, or merge PRs. Registration remains a browser step.
 
 ## Register and install
 
@@ -17,7 +17,8 @@ comments, repair code, or merge PRs. Registration remains a browser step.
    `https://github.com/ericdmoore/ferretta` as the homepage.
 3. Leave user OAuth callbacks/device authorization unconfigured. Disable the
    webhook for the current polling/manual-review version.
-4. Grant repository **Contents: read-only** and **Pull requests: read-only**.
+4. Grant repository **Contents: read-only** and **Pull requests: read/write** for proposal posting
+   (read-only is sufficient for inspection and ordinary review).
    Metadata read access is supplied by GitHub. No organization or account
    permissions are needed. Select installation on your account only for now.
 5. Create the app, copy its **Client ID** (numeric App ID also works), and
@@ -110,9 +111,10 @@ another program has access to that human's credentials.
 
 The app signs RS256 JWTs using an injected clock, backdating issuance by one
 minute and expiring them nine minutes after the current time. Each installation
-token requests only the target repository and Contents/Pull requests read
-permissions, even if the installation later gains broader permissions. Tokens
-are cached in memory per repository and renewed when at most one minute remains.
+fetch token requests only the target repository and Contents/Pull requests read
+permissions. Explicit proposal creation uses a separately cached token with
+Contents read and Pull requests write. Tokens
+are cached in memory per repository and permission scope and renewed when at most one minute remains.
 They are never written to reports, checkpoints, Git configuration, or config files.
 Concurrent requests share token creation. API redirects are refused. Failures
 surface without automatic retry or fallback; provider response bodies and

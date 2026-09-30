@@ -56,7 +56,8 @@ setup but requires explicit `--model` and `--check '["make","check"]` arguments.
 New policies request a 16,384-token context, 100 turns, at most 4,096 generated
 tokens per turn, and a ten-minute attempt. Larger contexts use more memory;
 these defaults are not a hardware sizing guarantee. Choose a different model-turn
-safety ceiling with `init --max-turns N` (1–200). The timeout and context bound
+ceiling with `init --max-turns N` (0 disables it); `--timeout 0` disables the
+attempt deadline. `--max-output-tokens N` controls per-reply generation. The timeout and context bound
 can stop a review before it reaches that ceiling. Large PRs or conversations
 may exceed the conservative context admission bound and produce an incomplete
 review. No evidence is silently truncated to fit.
@@ -116,8 +117,10 @@ passing; exit 2 means changes, a question, or incomplete work; exit 1 means a
 setup/output failure. A report is not permission to merge.
 
 Private checkpoints and a JSON report remain in `.ferretta/runs/`. Do not publish
-session files: they contain model messages and repository content. Each invocation
-starts a new attempt; resumption and confirmed comment intent are not integrated.
+session files: they contain model messages and repository content. Ordinary invocations
+start new attempts. Enable [proposal sessions](proposals.md) with
+`--publish-proposals --humans YOUR_LOGIN` to post questions and resume after human
+replies. `review --resume PATH` polls once; the service does not yet poll replies.
 
 After the first useful review, consult [service installation](service.md) for
 macOS/Linux boot supervision. The current service durably collects PR revisions

@@ -51,7 +51,7 @@ func TestThinkingAndContextCompatibility(t *testing.T) {
 			t.Fatal(tt.body, err)
 		}
 	}
-	for _, value := range []string{`"thinking":"enabled","effort":"medium"`, `"thinking":"disabled"`, `"context_tokens":4096,"effort":"medium"`, `"context_tokens":999999,"effort":"medium"`} {
+	for _, value := range []string{`"thinking":"enabled","effort":"medium"`, `"thinking":"disabled"`, `"context_tokens":4096,"effort":"medium"`, `"context_tokens":-1,"effort":"medium"`} {
 		if _, err := ParsePolicy([]byte(strings.Replace(policyJSON, `"effort":"medium"`, value, 1))); err == nil {
 			t.Fatal("invalid settings accepted", value)
 		}

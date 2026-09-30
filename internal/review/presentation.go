@@ -32,7 +32,10 @@ func PrintReport(output io.Writer, report Report, format string) error {
 		fmt.Fprintf(&b, "\nFinding: %s:%d\n%s\n", plain(f.Path), f.Line, plain(f.Explanation))
 	}
 	if report.Question != "" {
-		fmt.Fprintf(&b, "\nIntent question (not posted):\n%s\n", plain(report.Question))
+		fmt.Fprintf(&b, "\nIntent question (see proposal delivery status):\n%s\n", plain(report.Question))
+	}
+	for _, proposal := range report.Proposals {
+		fmt.Fprintf(&b, "Proposal %s-v%d: %s %s\n", proposal.Topic, proposal.Version, proposal.Delivery, proposal.Comment.URL)
 	}
 	for _, tradeoff := range report.Tradeoffs {
 		fmt.Fprintf(&b, "\nTradeoff: %s\n", plain(tradeoff))
@@ -67,6 +70,8 @@ func PrintReport(output io.Writer, report Report, format string) error {
 	switch report.Status {
 	case "lgtm":
 		fmt.Fprintln(&b, "Next: inspect the evidence and tradeoffs. This advisory report does not authorize merging.")
+	case "awaiting_intent":
+		fmt.Fprintln(&b, "Next: reply to the proposal, then run review --resume with the saved session directory and the same policy/repository/PR.")
 	case "clarification_required":
 		fmt.Fprintln(&b, "Next: resolve the intent question with the human; automatic posting/resumption is not implemented.")
 	case "changes_required":

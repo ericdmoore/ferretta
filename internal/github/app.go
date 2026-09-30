@@ -19,8 +19,9 @@ import (
 	"time"
 )
 
-// App holds installation credentials privately; only scoped, read-only tokens
-// leave this adapter. It never uses personal credentials or retries dispatches.
+// App holds installation credentials privately. Public fetch tokens are read-only;
+// comment writes use separately cached tokens inside this adapter. No personal
+// credentials or automatic dispatch retries are used.
 type App struct {
 	clientID       string
 	installationID int64
@@ -135,6 +136,10 @@ func (a *App) installation(ctx context.Context, repo, jwt string) (Identity, err
 // Token caches per-repository tokens and renews before expiry. Clock is injected;
 // no polling, sleeps, or retry policy is hidden in this adapter.
 func (a *App) Token(ctx context.Context, repo string) (string, error) {
+	return a.token(ctx, repo, "read")
+}
+
+func (a *App) token(ctx context.Context, repo, pullAccess string) (string, error) {
 	if !ValidRepository(repo) {
 		return "", fmt.Errorf("provide a valid owner/repository")
 	}
@@ -147,7 +152,7 @@ func (a *App) Token(ctx context.Context, repo string) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
-	cacheKey := strings.ToLower(repo)
+	cacheKey := strings.ToLower(repo) + ":" + pullAccess
 	if cached := a.tokens[cacheKey]; cached.ExpiresAt.After(a.now().Add(time.Minute)) {
 		return cached.Token, nil
 	}
@@ -157,16 +162,16 @@ func (a *App) Token(ctx context.Context, repo string) (string, error) {
 	body, _ := json.Marshal(struct {
 		Repositories []string          `json:"repositories"`
 		Permissions  map[string]string `json:"permissions"`
-	}{[]string{strings.Split(repo, "/")[1]}, map[string]string{"contents": "read", "pull_requests": "read"}})
+	}{[]string{strings.Split(repo, "/")[1]}, map[string]string{"contents": "read", "pull_requests": pullAccess}})
 	var token installationToken
 	if err := a.request(ctx, "POST", fmt.Sprintf("/app/installations/%d/access_tokens", a.installationID), jwt, body, &token); err != nil {
 		return "", err
 	}
-	if strings.TrimSpace(token.Token) == "" || strings.ContainsAny(token.Token, "\r\n") || !token.ExpiresAt.After(a.now().Add(time.Minute)) || token.Permissions["contents"] != "read" || token.Permissions["pull_requests"] != "read" {
+	if strings.TrimSpace(token.Token) == "" || strings.ContainsAny(token.Token, "\r\n") || !token.ExpiresAt.After(a.now().Add(time.Minute)) || token.Permissions["contents"] != "read" || token.Permissions["pull_requests"] != pullAccess {
 		return "", fmt.Errorf("invalid installation token or missing read permissions")
 	}
 	for name, level := range token.Permissions {
-		if level != "read" || (name != "contents" && name != "pull_requests" && name != "metadata") {
+		if (level != "read" && !(name == "pull_requests" && level == pullAccess)) || (name != "contents" && name != "pull_requests" && name != "metadata") {
 			return "", fmt.Errorf("installation token exceeded requested permissions")
 		}
 	}
