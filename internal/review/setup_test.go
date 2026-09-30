@@ -70,7 +70,7 @@ func TestSetupCreatesUsablePolicy(t *testing.T) {
 				t.Fatal(err)
 			}
 			p, err := ParsePolicy(data)
-			if err != nil || p.config.Model != "a-model" || p.config.Effort != "medium" || p.config.MaxTurns != 10 || p.config.MaxTokens != 4096 || p.config.TimeoutSeconds != 600 {
+			if err != nil || p.config.Model != "a-model" || p.config.Effort != "medium" || p.config.MaxTurns != 100 || p.config.MaxTokens != 4096 || p.config.TimeoutSeconds != 600 {
 				t.Fatalf("unusable policy: %s, %v", data, err)
 			}
 			want := []string{"go", "test", "./..."}
@@ -345,5 +345,21 @@ func TestDiscoveryBoundary(t *testing.T) {
 	})
 	if _, err := discover(context.Background(), client, probe{endpoint: "http://localhost"}); err == nil {
 		t.Fatal("read error lost")
+	}
+}
+
+func TestSetupExplicitTurnAllowance(t *testing.T) {
+	t.Chdir(t.TempDir())
+	args := append(append([]string{}, unattended...), "--max-turns", "200")
+	if code := setupFixture(t).Run(context.Background(), args, nil, io.Discard, io.Discard); code != 0 {
+		t.Fatal(code)
+	}
+	data, err := os.ReadFile(".ferretta/review.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := ParsePolicy(data)
+	if err != nil || p.config.MaxTurns != 200 {
+		t.Fatal("explicit allowance not retained", err)
 	}
 }

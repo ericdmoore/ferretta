@@ -53,9 +53,11 @@ bin/ferretta init --model qwen3:4b-thinking --policy .ferretta/local-review.json
 
 Use the same `--policy` path with subsequent commands. `--yes` supports unattended
 setup but requires explicit `--model` and `--check '["make","check"]` arguments.
-New policies request a 16,384-token context, ten turns, at most 4,096 generated
+New policies request a 16,384-token context, 100 turns, at most 4,096 generated
 tokens per turn, and a ten-minute attempt. Larger contexts use more memory;
-these defaults are not a hardware sizing guarantee. Large PRs or conversations
+these defaults are not a hardware sizing guarantee. Choose a different model-turn
+safety ceiling with `init --max-turns N` (1–200). The timeout and context bound
+can stop a review before it reaches that ceiling. Large PRs or conversations
 may exceed the conservative context admission bound and produce an incomplete
 review. No evidence is silently truncated to fit.
 

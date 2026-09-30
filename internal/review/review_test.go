@@ -386,3 +386,40 @@ func TestSave(t *testing.T) {
 		t.Fatal("lost rename error")
 	}
 }
+
+func TestReviewTurnAllowance(t *testing.T) {
+	for _, turns := range []int{1, 100, 200} {
+		data := strings.Replace(policyJSON, `"max_turns":5`, fmt.Sprintf(`"max_turns":%d`, turns), 1)
+		if p, err := ParsePolicy([]byte(data)); err != nil || p.config.MaxTurns != turns {
+			t.Fatal(turns, err)
+		}
+	}
+	for _, turns := range []int{-1, 0, 201} {
+		data := strings.Replace(policyJSON, `"max_turns":5`, fmt.Sprintf(`"max_turns":%d`, turns), 1)
+		if _, err := ParsePolicy([]byte(data)); err == nil {
+			t.Fatal("invalid turn allowance accepted", turns)
+		}
+	}
+	p, err := ParsePolicy([]byte(strings.Replace(policyJSON, `"max_turns":5`, `"max_turns":100`, 1)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var replies []Reply
+	for i := 0; i < 35; i++ {
+		replies = append(replies, reply("run_checks", `{"cmd":"not authorized"}`))
+	}
+	replies = append(replies, reply("run_checks", `{}`), reply("finish_review", finishJSON("lgtm")))
+	m := &fakeModel{replies: replies}
+	r := runner(m)
+	checkCalls := 0
+	r.Exec = commandFunc(func(c context.Context, d, n string, a ...string) ([]byte, error) {
+		if n == "make" {
+			checkCalls++
+		}
+		return defaultExec(c, d, n, a...)
+	})
+	got := r.Review(context.Background(), p, workspace(), nil, func(Report, []Message) error { return nil })
+	if got.Status != "lgtm" || len(got.Attempts) != 37 || checkCalls != 1 {
+		t.Fatalf("extended allowance failed: status=%s turns=%d checks=%d", got.Status, len(got.Attempts), checkCalls)
+	}
+}

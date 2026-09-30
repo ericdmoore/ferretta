@@ -71,7 +71,7 @@ It does not yet save layered user defaults or TOML. Existing files are preserved
 | `provider`, `endpoint`, `model` | Explicit `ollama` route at an HTTP loopback endpoint and installed model ID |
 | `thinking` or `effort` | Exactly one: `thinking: "enabled"` for boolean controls, or `effort: "low"`, `"medium"`, `"high"` for named controls |
 | `context_tokens` | 8,192–131,072; new setup defaults to 16,384; omitted legacy field remains 65,536 |
-| `max_turns` | 1–30; setup uses 10 |
+| `max_turns` | 1–200; setup uses 100; counts model responses, not review/repair cycles |
 | `max_tokens_per_turn` | 256–16,384; setup uses 4,096; must leave input room in context |
 | `timeout_seconds` | 1–3,600; setup uses 600 |
 | `checks` | Nonempty list of command argument arrays; trusted operator-selected commands |

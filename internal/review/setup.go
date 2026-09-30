@@ -38,6 +38,7 @@ func (s Setup) Run(ctx context.Context, args []string, input io.Reader, output, 
 	effort := flags.String("effort", "", "explicit named reasoning effort: low, medium, high")
 	thinking := flags.String("thinking", "auto", "auto, enabled, low, medium, high")
 	contextTokens := flags.Int("context", 16384, "context token limit; memory use grows with context")
+	maxTurns := flags.Int("max-turns", 100, "model-turn safety ceiling (1–200); independent of the timeout")
 	repo := flags.String("repo", "", "repository for GitHub App access verification")
 	path := flags.String("policy", ".ferretta/review.json", "new policy path; existing files are never overwritten")
 	yes := flags.Bool("yes", false, "save without prompting; requires --model and --check")
@@ -177,7 +178,7 @@ func (s Setup) Run(ctx context.Context, args []string, input io.Reader, output, 
 		}
 	}
 	cfg := config{Provider: "ollama", Endpoint: *endpoint, Model: *model, ContextTokens: *contextTokens,
-		MaxTurns: 10, MaxTokens: 4096, TimeoutSeconds: 600, Checks: [][]string{command}}
+		MaxTurns: *maxTurns, MaxTokens: 4096, TimeoutSeconds: 600, Checks: [][]string{command}}
 	if requested == "enabled" {
 		cfg.Thinking = requested
 	} else {

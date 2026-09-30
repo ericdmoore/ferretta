@@ -53,7 +53,7 @@ func ParsePolicy(data []byte) (Policy, error) {
 	if c.ContextTokens < 8192 || c.ContextTokens > 131072 || c.MaxTokens+2048 >= c.ContextTokens {
 		return Policy{}, fmt.Errorf("context_tokens must be 8192–131072 with room for input and output")
 	}
-	if c.MaxTurns < 1 || c.MaxTurns > 30 || c.MaxTokens < 256 || c.MaxTokens > 16384 || c.TimeoutSeconds < 1 || c.TimeoutSeconds > 3600 {
+	if c.MaxTurns < 1 || c.MaxTurns > 200 || c.MaxTokens < 256 || c.MaxTokens > 16384 || c.TimeoutSeconds < 1 || c.TimeoutSeconds > 3600 {
 		return Policy{}, fmt.Errorf("invalid review resource limits")
 	}
 	if len(c.Checks) == 0 {

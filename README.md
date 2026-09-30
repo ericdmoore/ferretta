@@ -51,6 +51,15 @@ to submit a verdict. This run establishes authenticated fetch, isolated check
 execution, and bounded termination; it supplies no LGTM. Improving invalid-tool-call
 recovery and detecting repeated lack of progress are the next review-loop work.
 
+Follow-up attempts raised the allowance to 100 model turns with the same model,
+medium effort, 128K context, and ten-minute timeout. They remained **incomplete**:
+one received HTTP 500 from Ollama, another exhausted the 4,096-token output
+allowance in a single response, and a retry with 16,384 output tokens stopped at
+the conservative context admission bound after three replies. None reached the
+100-turn ceiling or produced a verdict. New setup policies now allow 100 turns;
+`init --max-turns N` accepts 1–200. More turns do not remove independent output,
+context, and time limits; conversation compaction/resumption remains future work.
+
 ### Website and installation
 
 The Hugo site targets **[ferretta.cc](https://ferretta.cc/)** and serves the root
