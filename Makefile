@@ -18,7 +18,7 @@ check: ## Run the complete local/CI checks, including the coverage ratchet
 	@sh scripts/check.sh
 
 fmt: ## Format Go code with the pinned toolchain
-	@go fmt ./...
+	@git ls-files --cached --others --exclude-standard '*.go' | xargs "$$(go env GOROOT)/bin/gofmt" -w
 
 lint: ## Run go vet with the pinned toolchain
 	@go vet ./...
@@ -68,3 +68,22 @@ coverage-update: ## Run all checks and retain improved coverage in the baseline
 
 install-hooks: ## Enable the local pre-commit checks for this checkout
 	@git config core.hooksPath .githooks
+
+.PHONY: tools-site site site-check site-serve test-installer
+
+tools-site: ## Install the pinned pure-Go Hugo compiler into bin/tools (network required)
+	@mkdir -p bin/tools
+	@GOBIN="$(CURDIR)/bin/tools" go install github.com/gohugoio/hugo@v$$(cat .hugo-version)
+
+site: ## Build the Hugo site into bin/site (run tools-site first)
+	@sh scripts/site.sh build
+
+site-check: site ## Build and check the site's local links and installer copy
+	@go test -count=1 -tags=site ./internal/sitetest
+
+site-serve: ## Preview Hugo at localhost:1313 (run tools-site first)
+	@sh scripts/site.sh serve
+
+test-installer: ## Exercise the installer with offline release and command fixtures
+	@sh -n install.sh
+	@go test -count=1 ./internal/installtest

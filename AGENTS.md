@@ -68,3 +68,12 @@ FERRETTA_TEST_MODEL=qwen3:4b-thinking make test-network-models` (on one shell li
 Use `compatible` for `/v1/models`. The separate inference suite requires an
 explicit absolute `FERRETTA_TEST_MODEL_POLICY` and `make test-network-model-tools`.
 Normal tests never invoke either live suite.
+
+The Hugo site lives in site/. Run make tools-site once to install the pinned
+compiler, then make site-check for template/link/installer validation. The Pages
+workflow uses the same commands and deploys only main. Keep install.sh as the
+single installer source mounted by Hugo; never publish private run data. Installer
+fixtures in internal/installtest use fake downloads and commands. All optional
+components require explicit selection; do not collect unused OpenRouter keys or
+claim LiteLLM/OpenRouter inference is implemented. Public installation requires
+a published release and HTTPS; drafting assets does not publish them.

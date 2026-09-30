@@ -1,0 +1,6 @@
+{{- $url := .Destination -}}
+{{- if and (not (urls.Parse $url).IsAbs) (strings.HasSuffix $url ".md") -}}
+  {{- $name := strings.TrimSuffix ".md" (path.Base $url) -}}
+  {{- with site.GetPage (printf "/docs/%s" $name) -}}{{- $url = .RelPermalink -}}{{- else -}}{{- $url = printf "https://github.com/ericdmoore/ferretta/blob/main/%s" $url -}}{{- end -}}
+{{- end -}}
+<a href="{{ $url | safeURL }}"{{ with .Title }} title="{{ . }}"{{ end }}>{{ .Text }}</a>

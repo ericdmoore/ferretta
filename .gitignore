@@ -2,3 +2,7 @@
 /.coverage.out
 /dist/
 /.ferretta/runs/
+
+/site/.hugo_build.lock
+/site/resources/
+/site/public/

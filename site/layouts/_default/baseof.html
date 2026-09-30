@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ if not .IsHome }}{{ .Title }} · {{ end }}Ferretta</title>
+  <meta name="description" content="{{ .Description | default site.Params.description }}">
+  <meta name="theme-color" content="#f6f4ed">
+  <link rel="canonical" href="{{ .Permalink }}">
+  <link rel="icon" href="{{ "favicon.svg" | relURL }}" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ "style.css" | relURL }}">
+  <script src="{{ "site.js" | relURL }}" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header wrap">
+  <a class="wordmark" href="{{ "" | relURL }}" aria-label="Ferretta home"><span class="mark" aria-hidden="true">ƒ</span>ferretta<span class="cc">.cc</span></a>
+  <nav aria-label="Main"><a href="{{ "docs/" | relURL }}">Documentation</a><a href="https://github.com/ericdmoore/ferretta">GitHub ↗</a><a class="nav-install" href="{{ "docs/install/" | relURL }}">Install <span aria-hidden="true">↓</span></a></nav>
+</header>
+{{ block "main" . }}{{ end }}
+<footer class="wrap site-footer"><p>A sure footing for the next commit.</p><div><span>Open source · Experimental</span><a href="https://github.com/ericdmoore/ferretta/blob/main/LICENSE">License</a><a href="https://github.com/ericdmoore/ferretta/releases">Releases ↗</a></div></footer>
+</body>
+</html>

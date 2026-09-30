@@ -12,6 +12,15 @@ Experimental. The pure Go CLI parses intent markers, inspects existing GitHub PR
 
 The `review` command prepares an isolated workspace at exact commits, applies a trusted local repository policy, runs an Ollama tool loop, and saves model/effort provenance. Comment notifications, OpenRouter inference, posting clarification questions, and resuming after a human response are not implemented yet. Review reports are advisory and do not authorize merging.
 
+### Website and installation
+
+The Hugo site targets **[ferretta.cc](https://ferretta.cc/)** and serves the root
+`install.sh` for macOS/Linux on amd64/arm64. It installs checksum-verified GitHub
+release binaries and offers optional component setup. Public installation needs
+the site deployed over HTTPS and a published release; draft releases do not qualify.
+See [site development and launch](docs/site.md) for preview, Pages/DNS setup, and
+release prerequisites.
+
 ### Get a first useful review
 
 Start with `bin/ferretta demo` to see a labeled example, then use `init`,
