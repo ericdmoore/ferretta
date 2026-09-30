@@ -28,6 +28,8 @@ not the defaults of whoever happens to log in to the machine.
 Draft [TOML presets](presets/README.md) give `cost`, `time`, and `quality` a
 shared proposed structure, with separate routing and planning preferences.
 They are design examples, not configuration accepted by the current CLI.
+The separate [workflow syntax comparison](workflow-syntax.md) records both
+dependency stages and ordered waves without selecting either format.
 
 | Preset | Primary optimization | Unchanged requirements |
 | --- | --- | --- |

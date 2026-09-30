@@ -65,7 +65,8 @@ Planning preferences do not mandate a fixed number of models or waves. Quality
 may use one eligible model when that is all policy permits; report that there
 was no independent second opinion. Time may run serially on constrained hardware.
 Explicit advanced DAG policies take precedence over these planning preferences.
-Their syntax is still open.
+Their syntax is still open. Compare the two candidate
+[workflow formats](../workflow-syntax.md): dependency stages and ordered waves.
 
 Repair, publishing, and merging remain subject to separately authorized effects.
 The hot seat recommends allocation; the core enforces policy. An explicitly
