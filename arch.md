@@ -359,6 +359,8 @@ The DAG scheduler, spending ledger, constraint parsing, automatic comment
 notifications, objective routing, repair waves, and automated merging remain to
 be implemented. The runtime projects
 surveyed during design are references; none has been adopted as a dependency.
+The [inspiration catalogue](inspiration.md) records those projects and the
+questions they may help us answer.
 
 ## 14. Service lifecycle and unattended credentials
 

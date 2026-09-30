@@ -7,6 +7,9 @@ request, Ferretta reviews the proposed commits against trusted repository policy
 It looks for bugs, consequential ambiguity, and unnecessary complexity. An earned
 LGTM is a valid result; the reviewer should not manufacture work.
 
+The [inspiration catalogue](inspiration.md) records Go harnesses, design ideas,
+and tradeoffs worth revisiting.
+
 The name comes from *via ferrata*: a supported route through difficult terrain.
 The aim is useful progress toward the human's intended software, with explicit
 resource limits and evidence that remains tied to the code actually reviewed.
