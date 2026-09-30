@@ -44,6 +44,45 @@ and how to change it. Plans follow the objective and resources; advanced policie
 may specify model waves explicitly. A preset cannot silently opt into a paid
 provider or weaken the definition of LGTM.
 
+## Sharing configuration: public import, local ownership
+
+**Agreed design; not implemented.** Import is a CLI authoring operation that
+produces a self-contained, editable local `ferretta.toml`. Normal configuration
+loading reads local files and does not fetch upstream policy. We are not adopting
+runtime URL inheritance through an `extends` field.
+
+Proposed command:
+
+```sh
+ferretta config import https://github.com/owner/repo/blob/main/ferretta.toml
+```
+
+Accept public GitHub file links and public raw HTTPS file URLs. The import adapter
+retrieves content anonymously; it does not use the GitHub App, personal tokens,
+browser sessions, or `gh` credentials. Private-repository URL imports are
+intentionally unsupported. Users with private-source access can manually copy
+the complete configuration into their project using their own tools. No import
+token prompt, OAuth flow, or GitHub CLI dependency is needed. Failure to retrieve
+a public file must not trigger an authentication fallback or assume that a 404
+proves a repository is private.
+
+The importer validates the schema and materializes configuration into one local
+file, preserving useful tables and arrays. Any supported inheritance resolution
+belongs at import time; its syntax remains undecided. Record the public source
+URL, exact GitHub commit when applicable, source content hash, and import time as
+provenance comments. Subsequent edits belong to the local project; provenance
+describes the imported source, not the integrity of later local changes.
+
+Preview the result before writing. Preserve an existing file unless the user
+explicitly chooses replacement, showing the differences first. Upstream changes
+never silently update an imported policy. Fetching or validating a policy does
+not execute its checks, start inference, establish model connections, or grant
+spending/write permissions. Report unresolved local setup requirements.
+
+This public-only decision supersedes the earlier private-import/token-prompt
+proposal. Service reviews, comments, and repairs continue to use the dedicated
+GitHub App identity under their existing authorization rules.
+
 ## Implemented surfaces
 
 - GitHub App connection: strict machine JSON in `ferretta/github.json` beneath
