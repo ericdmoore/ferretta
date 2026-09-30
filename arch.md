@@ -158,15 +158,44 @@ Policy describes model aliases, required capabilities and effort, waves, gates,
 permitted effects, fallbacks, and resource limits. Machine configuration resolves
 connections and credential references. Secrets remain outside the repository.
 
-Resource settings resolve in this order:
+Configuration resolves in this order, highest priority first:
 
 ```text
-CLI defaults → trusted repository defaults → authorized per-PR overrides
+authorized PR config > trusted repo config > CLI user config > built-in defaults
 ```
 
 Record the source of effective settings. Pin trusted policy and resolved route
 configuration with each review, excluding secrets. A PR must not authorize its
 own increased spending or permissions by changing configuration under review.
+
+No configuration file should be mandatory for default policy. Ship useful
+built-in defaults and an optional `init` questionnaire that saves user defaults.
+Missing fields inherit; explicit values replace, including complete lists.
+An explicit invocation override may select an objective within the same
+authorization boundaries. In service deployments, user defaults belong to the
+configured service profile, independent of desktop login. Machine connections,
+credential references, state paths and watch lists are operator settings; PR
+content cannot replace them. See [configuration decisions](docs/configuration.md)
+for the boundary between agreed design and implemented flags/JSON.
+
+Ship three objective presets: **cost** (default), **time**, and **quality**.
+Cost minimizes additional spending; time minimizes time to an acceptable result;
+quality seeks stronger evidence within granted allowances. Choose one primary
+objective, with the other dimensions constrained. Higher cost or token use is
+not evidence of quality. Switching objectives should take one CLI command or
+flag, without editing a config file. Display the effective objective and source.
+
+Derive model routes and serial/parallel plans from objective, capabilities,
+available resources and hard constraints. Explicit DAG policies remain an
+advanced option. Presets neither authorize providers/spending nor relax
+acceptance criteria. The hot seat may recommend allocations within that policy.
+
+Subscription-backed model connections are deferred until they demonstrably
+improve these objectives. Authentication, renewal, quota windows and billing are
+provider-specific concerns, separate from GitHub identity. Remaining subscription
+quota is not a dollar balance or permission for paid fallback; unknown quota
+remains unknown, and a provider quota reset does not replenish a job's allowance.
+Do not manufacture work just to use otherwise expiring tokens.
 
 Support local inference and OpenRouter through provider adapters. Reject routes
 that cannot satisfy required tools, multi-turn continuation, or reasoning
@@ -187,8 +216,8 @@ separate authenticated allowlisted authors. Do not fall back to personal `gh`
 credentials or tokens. Machine configuration holds app/installation IDs and a
 private-key reference; repository policy does not carry credentials.
 
-The initial connection uses short-lived, repository-scoped read tokens and
-manual commands. User OAuth is not required. Registration, app installation,
+The initial connection uses short-lived, repository-scoped read tokens for
+manual commands and polling. User OAuth is not required. Registration, app installation,
 and local private-key provisioning are operator setup. A shared hosted app's
 private key must never be distributed to other installations. Strong separation
 from human credentials during untrusted code execution needs an OS isolation
@@ -273,8 +302,8 @@ explicit uncertain outcomes and reconciliation remain necessary.
 
 Keep SQLite behind the work-store interface and use a configured state location
 shared by the repository's checkouts. Use a CGO-free driver, pinned and verified
-against the supported targets. `modernc.org/sqlite` is a candidate, not yet an
-adopted dependency. JSON remains useful for inspection/export but PR comment
+against the supported targets. The intake implementation adopts
+`modernc.org/sqlite` v1.60.1 with pinned transitive dependencies. JSON remains useful for inspection/export but PR comment
 blocks are not the authoritative spending ledger.
 
 ## 12. Future distributed execution
@@ -312,15 +341,57 @@ temporary databases for transactions, duplicate delivery, rollback, and recovery
 Keep live-provider checks separate from the offline suite. The minor/major
 release policy for requiring live tests remains undecided.
 
-Remaining implementation choices include exact TOML schemas and migration,
-concrete model IDs and default allowances, database location/schema/driver
-version, grant payload validation, and detailed recovery protocols. Support for
+Remaining implementation choices include the full TOML schema and migration,
+concrete model IDs and default allowances, DAG/ledger schema extensions,
+grant payload validation, and effect recovery protocols. Support for
 Markdown-heading-prefixed markers is not decided; current markers start at
 column one, and quoted/fenced examples are inert.
 
 The existing CLI provides intent inspection and a bounded single-Ollama review
 with JSON checkpoints; the separately developed `init` prototype discovers
-local endpoints and prepares an Ollama policy. SQLite, the DAG scheduler,
-constraint parsing, notifications/resumption, broader provider routing, repair
-waves, and automated merging remain to be implemented. The runtime projects
+local endpoints and prepares an Ollama policy. The service now polls open PRs
+and saves deduplicated revision observations in SQLite, with one local owner.
+These observations are inputs awaiting policy admission, not scheduled reviews.
+The DAG scheduler, spending ledger, constraint parsing, comment notifications/
+resumption, objective routing, repair waves, and automated merging remain to be
+implemented. The runtime projects
 surveyed during design are references; none has been adopted as a dependency.
+
+## 14. Service lifecycle and unattended credentials
+
+The primary runtime is a long-running service. The CLI provisions, inspects and
+controls that service; manual review remains useful. The intended lifecycle is
+boot, recover durable work, watch configured repositories, execute admitted work,
+and wait. OS supervision runs a foreground process: a macOS LaunchDaemon or
+Linux systemd service, independent of an interactive desktop session.
+
+Use a dedicated service account and explicit configuration, state, credential
+and workspace paths. One coordinator owns scheduling and accounting. Planned
+CLI mutations go through a permission-protected local control socket, rather
+than creating another scheduler. The first slice offers static watch arguments
+and read-only status; it does not yet implement the control socket.
+
+Poll GitHub first, avoiding a required public webhook endpoint. Polling open PRs
+is implemented; human-reply intake and checkpoint resumption are subsequent
+slices. OS ownership locks apply only to the same local state directory, not to
+independent stores or machines. Do not put this store on a network filesystem.
+
+Recovery must preserve spending, human waits, hard stops and uncertain external
+effects. A restart is not authorization to retry an ambiguous model call, reset
+allowances, or clear a blocking question. The initial observation queue has no
+model dispatch, so repeated delivery can be deduplicated without external costs.
+
+Credentials must be available at boot without a person's login/keychain unlock.
+Use service-readable credential facilities where available; private files owned
+by the service account are the explicit bootstrap. Do not silently fall back to
+plaintext when a configured secret backend is unavailable. Provision/reauthorize
+interactively, refresh unattended only where supported, and surface authentication
+failure when human action is necessary.
+
+A salt is public, not an encryption key. Encrypting SQLite values would still
+require a protected source for the decryption key at boot. Keep secrets out of
+SQLite and portable policy in this slice; persist references only. Retrieve
+secrets at the connection boundary, never through model tools, logs or reports.
+Future secret backends should be injected and testable. OS isolation between
+untrusted tools and service credentials is still required before unattended
+execution of arbitrary PR checks; environment filtering alone does not provide it.

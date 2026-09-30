@@ -13,6 +13,9 @@ Follow the development principles and intent vocabulary in README.md.
 - LGTM is a valid outcome when the evidence supports intent alignment, correctness, and an appropriately small, well-designed implementation. Explain major tradeoffs; do not manufacture findings or chase fewer lines at the expense of required behavior or clarity. Model approval cannot override incomplete required checks, blocking questions/findings, or a stale revision.
 - Ferretta's reviewer may ask for clarification with PROPOSED comments on the PR. Human replies notify and resume the saved review job; corrections lead to a revised proposal, and confirmations establish intent for review.
 - Keep the notification adapter separate from core policy. Repeated delivery must not duplicate model spending or posted questions.
+- `service run` currently performs intake only: GitHub App polling and SQLite revision observations with one local owner. It does not dispatch reviews, parse replies, run checks or write to GitHub. `service status` reads persisted observations, not process liveness. Preserve this boundary in documentation.
+- SQLite intake uses modernc.org/sqlite with CGO disabled. A local OS lock protects one state directory; independent directories/installations do not coordinate. Keep the database private and reject unknown schema versions.
+- The primary runtime is a boot service with service-owned configuration and credentials, independent of desktop login. See arch.md and docs/configuration.md for agreed configuration layers and objective presets; their TOML resolver and CLI selectors are not implemented.
 
 ## Implementation practices
 

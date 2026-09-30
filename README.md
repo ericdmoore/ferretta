@@ -8,9 +8,26 @@ Context consistency,
 Local extensibility
 
 ## Status
-Experimental. The pure Go CLI parses intent markers, inspects existing GitHub PR comments, and can run a bounded local-model review of a submitted PR. The broader notification-driven harness below remains a design draft. It is still worth evaluating which parts could be accomplished with a customized pi.dev.
+Experimental. The pure Go CLI parses intent markers, inspects existing GitHub PR comments, and can run a bounded local-model review of a submitted PR. Its first background service polls PRs into a durable SQLite intake queue. Automatic model dispatch and the broader harness below remain a design draft. It is still worth evaluating which parts could be accomplished with a customized pi.dev.
 
-The `review` command prepares an isolated workspace at exact commits, applies a trusted local repository policy, runs an Ollama tool loop, and saves model/effort provenance. Notification intake, OpenRouter inference, posting clarification questions, and resuming after a human response are not implemented yet. Review reports are advisory and do not authorize merging.
+The `review` command prepares an isolated workspace at exact commits, applies a trusted local repository policy, runs an Ollama tool loop, and saves model/effort provenance. Comment notifications, OpenRouter inference, posting clarification questions, and resuming after a human response are not implemented yet. Review reports are advisory and do not authorize merging.
+
+### Background service
+
+```sh
+bin/ferretta service run --repo ericdmoore/ferretta --state /absolute/private/state
+bin/ferretta service status --state /absolute/private/state
+```
+
+The service polls through the configured GitHub App and remembers exact PR
+revisions across restarts. This slice is intake-only: no inference, PR code
+execution or GitHub writes. [Boot service templates and operation](docs/service.md)
+cover macOS LaunchDaemon and Linux systemd deployment.
+
+The agreed configuration hierarchy and `cost`/`time`/`quality` presets are recorded
+in [configuration decisions](docs/configuration.md). The layered TOML resolver and
+objective selector are not implemented yet. [Architecture](arch.md) records the
+service lifecycle, credential boundary and planned execution/recovery rules.
 
 ### Try the CLI
 
@@ -218,7 +235,7 @@ Every finding and PROPOSED comment links back to its originating attempt. A fall
 
 PR submission starts a review job. Relevant later events, including new commits and human clarification replies, wake that same job. The CLI needs a listening mode or an external invoker delivering events; the current one-shot inspection command does not receive notifications.
 
-Notification delivery is an adapter concern. Whether the local deployment uses polling, a webhook receiver, or a relay remains an implementation choice. The core decides whether a delivered event advances a job. Duplicate notifications must not repeat model spending or post duplicate clarification comments. A reply is correlated using the repository, PR, topic, and proposal version, then checked against the configured human identities.
+Notification delivery is an adapter concern. The first local service uses polling for open PR revisions; comment polling and optional webhook/relay adapters remain future work. The core decides whether a delivered event advances a job. Duplicate notifications must not repeat model spending or post duplicate clarification comments. A reply is correlated using the repository, PR, topic, and proposal version, then checked against the configured human identities.
 
 While awaiting a human answer, persist the job, pending question, and review provenance so execution can resume after a restart. Recheck the PR revision on resumption; evidence from an older revision does not authorize newly pushed code.
 

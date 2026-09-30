@@ -43,3 +43,10 @@ func TestAuthCLI(t *testing.T) {
 		t.Fatal("auth failure lost")
 	}
 }
+
+func TestServiceDispatch(t *testing.T) {
+	var output bytes.Buffer
+	if Run(context.Background(), []string{"service"}, nil, io.Discard, &output, nil) != 1 || !strings.Contains(output.String(), "service run") {
+		t.Fatal("service command not routed", output.String())
+	}
+}

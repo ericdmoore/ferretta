@@ -57,6 +57,15 @@ func TestNetworkApp(t *testing.T) {
 	if err != nil || pr.Head == "" || pr.Base == "" || pr.URL == "" {
 		t.Fatal("read PR", err)
 	}
+	open, err := a.OpenPullRequests(ctx, repo)
+	if err != nil {
+		t.Fatal("list open PRs", err)
+	}
+	for _, candidate := range open {
+		if candidate.Number <= 0 || candidate.Head == "" || candidate.Base == "" || candidate.State != "OPEN" {
+			t.Fatal("missing open PR evidence")
+		}
+	}
 	comments, err := a.Comments(ctx, repo, number)
 	if err != nil || len(comments) == 0 {
 		t.Fatal("fixture requires comments", err)

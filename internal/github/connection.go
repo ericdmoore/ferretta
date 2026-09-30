@@ -70,6 +70,14 @@ type AppConfig struct {
 	PrivateKeyFile string `json:"private_key_file"`
 }
 
+func (c *Connection) OpenPullRequests(ctx context.Context, repo string) ([]PullRequest, error) {
+	a, err := c.get()
+	if err != nil {
+		return nil, err
+	}
+	return a.OpenPullRequests(ctx, repo)
+}
+
 func DefaultConfigPath() (string, error) {
 	if path := os.Getenv("FERRETTA_GITHUB_CONFIG"); path != "" {
 		if !filepath.IsAbs(path) {

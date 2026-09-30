@@ -11,6 +11,7 @@ import (
 
 	"github.com/ericdmoore/ferretta/internal/github"
 	"github.com/ericdmoore/ferretta/internal/intent"
+	"github.com/ericdmoore/ferretta/internal/service"
 )
 
 type CommentsClient interface {
@@ -27,7 +28,11 @@ func Run(ctx context.Context, args []string, input io.Reader, output, errors io.
 
 func RunWithReviewer(ctx context.Context, args []string, input io.Reader, output, errors io.Writer, client CommentsClient, reviewer ReviewRunner) int {
 	fail := func(err error) int { fmt.Fprintln(errors, err); return 1 }
-	const usage = "usage: ferretta auth github --repo owner/repo | ferretta intent parse | ferretta intent inspect --repo owner/repo --pr N --humans login --agents login | ferretta review --repo owner/repo --pr N [--policy .ferretta/review.json]"
+	const usage = "usage: ferretta service run --repo owner/repo [--state /absolute/path] | ferretta service status [--state /absolute/path] | ferretta auth github --repo owner/repo | ferretta intent parse | ferretta intent inspect --repo owner/repo --pr N --humans login --agents login | ferretta review --repo owner/repo --pr N [--policy .ferretta/review.json]"
+	if len(args) > 0 && args[0] == "service" {
+		source, _ := client.(service.Source)
+		return (service.CLI{Source: source}).Run(ctx, args[1:], output, errors)
+	}
 	if len(args) > 0 && args[0] == "auth" {
 		if len(args) < 2 || args[1] != "github" {
 			return fail(fmt.Errorf("use ferretta auth github --repo owner/repo"))

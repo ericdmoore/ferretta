@@ -212,3 +212,7 @@ func (a *App) Comments(ctx context.Context, repo string, pr int) ([]Comment, err
 func (a *App) PullRequest(ctx context.Context, repo string, pr int) (PullRequest, error) {
 	return a.client(repo).PullRequest(ctx, repo, pr)
 }
+
+func (a *App) OpenPullRequests(ctx context.Context, repo string) ([]PullRequest, error) {
+	return a.client(repo).OpenPullRequests(ctx, repo)
+}
