@@ -1,16 +1,55 @@
-# ferretta
-Ferretta (based on a "via ferrata") is a specific-harness for AI models.
+# Ferretta
 
-## Motivating Mission
-Budget Controls, 
-Graceful Model Degradation, 
-Context consistency,
-Local extensibility
+**A local-first PR review harness for correctness, human intent, and implementation tradeoffs.**
 
-## Status
-Experimental. The pure Go CLI parses intent markers, inspects existing GitHub PR comments, and can run a bounded local-model review of a submitted PR. Its first background service polls PRs into a durable SQLite intake queue. Automatic model dispatch and the broader harness below remain a design draft. It is still worth evaluating which parts could be accomplished with a customized pi.dev.
+Work with any coding agent, using any workflow. Once that agent submits a pull
+request, Ferretta reviews the proposed commits against trusted repository policy.
+It looks for bugs, consequential ambiguity, and unnecessary complexity. An earned
+LGTM is a valid result; the reviewer should not manufacture work.
 
-The `review` command prepares an isolated workspace at exact commits, applies a trusted local repository policy, runs an Ollama tool loop, and saves model/effort provenance. Comment notifications, OpenRouter inference, posting clarification questions, and resuming after a human response are not implemented yet. Review reports are advisory and do not authorize merging.
+The name comes from *via ferrata*: a supported route through difficult terrain.
+The aim is useful progress toward the human's intended software, with explicit
+resource limits and evidence that remains tied to the code actually reviewed.
+
+## What works today
+
+Ferretta is experimental, written in pure Go, and builds for macOS/Linux on
+amd64/arm64 with CGO disabled.
+
+| Capability | Current behavior |
+| --- | --- |
+| Local PR review | A bounded Ollama tool loop reads exact commits, executes trusted checks in a detached worktree, and produces an advisory report. |
+| Review provenance | Records head/base commits, policy hash, requested model/thinking settings, and provider-reported details when available. |
+| GitHub identity | Uses a dedicated GitHub App installation. Current tokens are read-only and scoped to the requested repository. |
+| Setup | `init` discovers local model metadata and creates an Ollama policy; `doctor` checks readiness. Downloads and inference are explicit, separate actions. |
+| Intent inspection | Parses and inspects existing proposal/correction/confirmation comments. Confirmed comment intent is not yet integrated into review sessions. |
+| Background service | Polls open PR revisions into durable SQLite storage. Automatic review dispatch is not implemented. |
+
+Reviews can produce findings, an intent question, an advisory LGTM, or an
+incomplete result when checks, context, or resource limits prevent completion.
+Reports and private session checkpoints are saved locally. Ferretta does not yet
+post comments, resume a review after a human reply, push repairs, or merge PRs.
+
+The next stages are a durable review dispatcher, human clarification and
+resumption, policy-selected model waves and fallbacks, resource accounting,
+OpenRouter inference, and gated repairs/merging. The agreed configuration layers
+and cost/time/quality objectives are described in [configuration decisions](docs/configuration.md)
+and [architecture](arch.md); the layered TOML resolver is not implemented.
+
+### Self-review checkpoint
+
+On September 29, 2026, Ferretta reviewed [PR #1](https://github.com/ericdmoore/ferretta/pull/1)
+at commit [08815c3](https://github.com/ericdmoore/ferretta/commit/08815c3e86ab596e09daf0b9b68a6411579f1eac)
+using local `gpt-oss:20b` with requested medium effort. The default 64K context
+admission check stopped the first attempt before inference; a separate policy
+with 128K context admitted the PR, retaining the ten-turn and ten-minute limits.
+
+The admitted run returned **incomplete** after ten turns: nine `run_checks` calls
+contained an unsupported `cmd` argument and were rejected. The tenth call was
+valid and the configured `make check` passed, but the model had no remaining turn
+to submit a verdict. This run establishes authenticated fetch, isolated check
+execution, and bounded termination; it supplies no LGTM. Improving invalid-tool-call
+recovery and detecting repeated lack of progress are the next review-loop work.
 
 ### Website and installation
 
@@ -23,8 +62,15 @@ release prerequisites.
 
 ### Get a first useful review
 
-Start with `bin/ferretta demo` to see a labeled example, then use `init`,
-`auth github --setup`, and `doctor` to prepare a small, trusted PR. The
+With Go 1.26.5 and Make installed, start with a labeled example that needs no
+credentials or model:
+
+```sh
+make build
+bin/ferretta demo
+```
+
+Then use `init`, `auth github --setup`, and `doctor` to prepare a small, trusted PR. The
 [getting-started guide](docs/getting-started.md) covers a local Qwen 4B path,
 an explicit two-turn model test, and your first advisory review. Setup performs
 metadata discovery only; model downloads and inference are separate actions.
