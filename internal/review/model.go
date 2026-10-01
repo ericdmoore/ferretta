@@ -159,15 +159,22 @@ func (o Ollama) Turn(ctx context.Context, p Policy, messages []Message) (Reply, 
 		return Reply{}, err
 	}
 	var reply Reply
-	body := map[string]any{"model": p.config.Model, "messages": messages, "stream": false, "think": p.thinkValue(), "tools": tools,
+	body := map[string]any{"model": p.config.Model, "messages": messages, "stream": false, "think": p.thinkValue(), "tools": p.tools(),
 		"options": map[string]any{"num_predict": p.config.MaxTokens, "num_ctx": p.config.ContextTokens}}
 	if err := o.post(ctx, p, "/api/chat", body, &reply); err != nil {
 		return Reply{}, err
 	}
 	if !reply.Done || reply.Message.Role != "assistant" || reply.Model == "" || reply.DoneReason == "length" {
-		return Reply{}, fmt.Errorf("model response is incomplete (done=%t, reason=%q, output_tokens=%d)", reply.Done, reply.DoneReason, reply.OutputTokens)
+		return reply, fmt.Errorf("model response is incomplete (done=%t, reason=%q, output_tokens=%d)", reply.Done, reply.DoneReason, reply.OutputTokens)
 	}
 	return reply, nil
+}
+
+func (p Policy) tools() json.RawMessage {
+	if p.toolSchema != nil {
+		return p.toolSchema
+	}
+	return tools
 }
 
 const searchToolDefinition = `"description":"search and grep are exact aliases. Search text files in the exact reviewed commit, not the working tree. Literal query by default; regex:true uses POSIX extended regex. path is an optional literal file/directory scope, not a glob. Returns paths, line numbers and matching line prefixes; binary files are skipped. Use read_file for context. Results are bounded to 48KB and 1–100 matches (default 20). When has_more is true, repeat the same query/path/regex with next_offset. If pagination limit is reached, narrow the query/path. text_truncated marks a shortened matching line; it is not complete evidence.","parameters":{"type":"object","properties":{"query":{"type":"string","minLength":1,"maxLength":1024},"path":{"type":"string"},"regex":{"type":"boolean"},"max_results":{"type":"integer","minimum":1,"maximum":100},"offset":{"type":"integer","minimum":0,"maximum":10000}},"required":["query"],"additionalProperties":false}`

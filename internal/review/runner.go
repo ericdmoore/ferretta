@@ -57,6 +57,7 @@ type Report struct {
 	FinishedAt         time.Time           `json:"finished_at"`
 	Attempts           []Reply             `json:"attempts"`
 	Checks             []string            `json:"checks"`
+	Usage              []UsageEvent        `json:"usage,omitempty"`
 }
 
 var shaPattern = regexp.MustCompile(`^[0-9a-f]{40}$`)
@@ -166,8 +167,23 @@ func (r Runner) continueReview(ctx context.Context, p Policy, w Workspace, sessi
 		if err := checkContext(p, messages); err != nil {
 			return finish(err.Error())
 		}
+		usageIndex := len(report.Usage)
+		started := r.Now()
+		report.Usage = append(report.Usage, UsageEvent{ID: fmt.Sprintf("model/%d", turn+1), Kind: "model", Operation: "review", Outcome: "pending"})
+		if err := checkpoint(report, messages); err != nil {
+			return finish("persist review before model dispatch: " + err.Error())
+		}
 		reply, err := r.Model.Turn(ctx, p, messages)
+		report.Usage[usageIndex].Duration = elapsed(started, r.Now())
+		report.Usage[usageIndex].Outcome = "completed"
+		if reply.PromptTokens > 0 {
+			report.Usage[usageIndex].PromptTokens = &reply.PromptTokens
+		}
+		if reply.OutputTokens > 0 {
+			report.Usage[usageIndex].OutputTokens = &reply.OutputTokens
+		}
 		if err != nil {
+			report.Usage[usageIndex].Outcome = "failed_usage_may_be_unknown"
 			return finish(err.Error())
 		}
 		if reply.PromptTokens > 0 {
@@ -183,6 +199,7 @@ func (r Runner) continueReview(ctx context.Context, p Policy, w Workspace, sessi
 			continue
 		}
 		for _, call := range reply.Message.ToolCalls {
+			toolStarted := r.Now()
 			command, err := Plan(call.Function.Name, call.Function.Arguments)
 			result := ""
 			if err != nil {
@@ -297,6 +314,7 @@ func (r Runner) continueReview(ctx context.Context, p Policy, w Workspace, sessi
 			if len(result) > 64000 {
 				return finish("tool result exceeds 64000-byte context limit")
 			}
+			report.Usage = append(report.Usage, UsageEvent{ID: fmt.Sprintf("tool/%d", len(report.Usage)+1), Kind: "tool", Operation: call.Function.Name, Outcome: "returned", Duration: elapsed(toolStarted, r.Now())})
 			messages = append(messages, Message{Role: "tool", ToolName: call.Function.Name, Content: result})
 			if err := checkpoint(report, messages); err != nil {
 				return finish("persist review: " + err.Error())

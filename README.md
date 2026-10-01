@@ -26,25 +26,24 @@ amd64/arm64 with CGO disabled.
 | GitHub identity | Uses a dedicated GitHub App installation. Fetch tokens are read-only; proposal posting uses separate repository-scoped comment-write tokens. |
 | Setup | `init` discovers local model metadata and creates an Ollama policy; `doctor` checks readiness. Downloads and inference are explicit, separate actions. |
 | Intent inspection | Parses and inspects existing proposal/correction/confirmation comments. Proposal sessions retain authenticated human correction/confirmation evidence. |
-| Background service | Polls open PR revisions into durable SQLite storage. Automatic review dispatch is not implemented. |
+| Background service | Intake-only polling, or explicit `service watch` for one PR with automatic review and human-reply handling. |
+| Automated scorecard | A separate read-only judge grades worker output and the oversight decision; records evidence and model/tool usage. |
 
 Reviews can produce findings, an intent question, an advisory LGTM, or an
 incomplete result when checks, context, or resource limits prevent completion.
 Reports and private session checkpoints are saved locally. Opt-in [proposal
 sessions](docs/proposals.md) post questions through the GitHub App and resume
-through explicit polling after human replies. Ferretta does not yet push repairs
+through explicit polling or a scoped watcher after human replies. Ferretta does not yet push repairs
 or merge PRs.
 
-The next stages are a durable review dispatcher, automatic reply notification,
-policy-selected model waves and fallbacks, resource accounting,
+The next stages are policy-selected model waves and fallbacks, fuller resource accounting,
 OpenRouter inference, and gated repairs/merging. The agreed configuration layers
 and cost/time/quality objectives are described in [configuration decisions](docs/configuration.md)
 and [architecture](arch.md); the layered TOML resolver is not implemented.
 
-The next [automatic review and evaluation effort](docs/review-evaluation.md)
-defines starting/verdict/scorecard comments, role-specific grading, resource
-accounting, and an end-to-end acceptance run. It is an implementation plan;
-automatic dispatch and grading are not yet available.
+The [review and scorecard guide](docs/evaluation.md) explains the implemented
+starting/verdict/scorecard flow and its limits. The [implementation plan](docs/review-evaluation.md)
+records the broader effort. Automated grades are assessments, not verified correctness.
 
 To have an agent help author a policy, point it to
 [skills/ferretta-config/SKILL.md](skills/ferretta-config/SKILL.md) in this checkout.
@@ -120,8 +119,9 @@ bin/ferretta service status --state /absolute/private/state
 ```
 
 The service polls through the configured GitHub App and remembers exact PR
-revisions across restarts. This slice is intake-only: no inference, PR code
-execution or GitHub writes. [Boot service templates and operation](docs/service.md)
+revisions across restarts. `service run` is intake-only: no inference, PR code
+execution or GitHub writes. Use the explicit [scoped watcher](docs/evaluation.md)
+to enable automatic reviews and scorecards for one PR. [Boot service templates and operation](docs/service.md)
 cover macOS LaunchDaemon and Linux systemd deployment.
 
 The agreed configuration hierarchy and `cost`/`time`/`quality` presets are recorded
@@ -139,7 +139,7 @@ printf 'PROPOSED-PureGo-v1:: Build with CGO disabled.\n' | bin/ferretta intent p
 bin/ferretta intent inspect --repo owner/repo --pr 123 --humans human-login --agents agent-login
 ```
 
-`intent parse` reads Markdown from standard input and emits JSON. `intent inspect` reads GitHub's PR conversation comments, checks the proposal/correction/confirmation sequence, and emits a JSON report with the repository, PR, source comment links, authors, and content hashes. Configure the dedicated [GitHub App connection](docs/github-app-auth.md) for API access; personal tokens and the `gh` login are not used by the CLI. The intent commands do not invoke a model. No current command writes to GitHub.
+`intent parse` reads Markdown from standard input and emits JSON. `intent inspect` reads GitHub's PR conversation comments, checks the proposal/correction/confirmation sequence, and emits a JSON report with the repository, PR, source comment links, authors, and content hashes. Configure the dedicated [GitHub App connection](docs/github-app-auth.md) for API access; personal tokens and the `gh` login are not used by the CLI. The intent commands do not invoke a model or write to GitHub. Proposal sessions and the scoped watcher can publish through the App.
 
 Human and agent logins are explicit, disjoint allowlists, matched without regard to case against GitHub-reported authors. A GitHub bot cannot act as a human. Topics are case-sensitive. Markers must start at column one and include a positive version suffix, beginning with `v1`; fenced and quoted examples are ignored. A correction must be followed by a proposal at the next version before confirmation. Choice selections remain in the confirmation body; the CLI does not infer their meaning from prose.
 

@@ -36,10 +36,10 @@ They are design examples, not configuration accepted by the current CLI.
 The separate [workflow syntax comparison](workflow-syntax.md) records both
 dependency stages and ordered waves without selecting either format.
 
-The [review/evaluation plan](review-evaluation.md) adds proposed separate reviewer
-and judge routes, role-specific rubric versions, grading allowances, and milestone
-publication settings. These are future surfaces, not new keys accepted by the
-current JSON policy or a settled TOML schema.
+The [scorecard prototype](evaluation.md) accepts separate reviewer and judge JSON
+policy files with independent allowances. Its role rubric is versioned in code.
+The [broader plan](review-evaluation.md) includes future configurable rubrics and
+publication settings; it does not settle the TOML schema.
 
 | Preset | Primary optimization | Unchanged requirements |
 | --- | --- | --- |
@@ -103,6 +103,11 @@ GitHub App identity under their existing authorization rules.
   reports. `model test` explicitly runs two bounded inference turns.
 - Manual review: explicit trusted `.ferretta/review.json`, selected with
   `review --policy`. The current adapter is Ollama only.
+- Evaluation: `eval --run PATH --policy PATH`, or `review --eval-policy PATH`.
+  The judge accepts Ollama route/limit fields but rejects executable checks.
+- Scoped dispatch: `service watch --repo owner/repo --pr N --state PATH
+  --review-policy PATH --judge-policy PATH --humans login`. See the
+  [operating guide](evaluation.md) for allowances and recovery.
 - Service intake: `service run --repo owner/repo` (repeatable), `--state` (absolute
   private directory), `--interval` (default `1m`, range `5s`–`24h`), and `--once`.
   Default state is `ferretta/state` beneath `os.UserConfigDir()`; boot service

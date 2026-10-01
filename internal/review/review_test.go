@@ -220,7 +220,7 @@ func TestReviewToolsAndApproval(t *testing.T) {
 	})
 	checkpoints := 0
 	got := r.Review(context.Background(), policy(t), workspace(), []byte(policyJSON), func(report Report, msg []Message) error { checkpoints++; return nil })
-	if got.Status != "lgtm" || len(got.Attempts) != 5 || checkCalls != 1 || checkpoints != 9 || got.EffectiveEffort != nil || got.RequestedEffort != "medium" {
+	if got.Status != "lgtm" || len(got.Attempts) != 5 || checkCalls != 1 || checkpoints != 14 || got.EffectiveEffort != nil || got.RequestedEffort != "medium" {
 		t.Fatalf("bad report: %+v; checkpoints %d", got, checkpoints)
 	}
 	if m.requests[1][2].Thinking != "private continuation" || m.requests[1][3].Role != "tool" {

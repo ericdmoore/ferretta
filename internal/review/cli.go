@@ -54,6 +54,7 @@ func NewCLI(connection GitHubConnection) CLI {
 }
 
 func (c CLI) Run(ctx context.Context, args []string, output, stderr io.Writer) int {
+	evaluationContext := ctx
 	fail := func(err error) int { fmt.Fprintln(stderr, err); return 1 }
 	flags := flag.NewFlagSet("review", flag.ContinueOnError)
 	flags.SetOutput(stderr)
@@ -64,6 +65,7 @@ func (c CLI) Run(ctx context.Context, args []string, output, stderr io.Writer) i
 	humans := flags.String("humans", "", "comma-separated allowlisted human logins; pinned in a new proposal session")
 	resume := flags.String("resume", "", "resume/poll a durable proposal session directory")
 	format := flags.String("format", "text", "text or json")
+	evalPolicy := flags.String("eval-policy", "", "grade a completed manual review using an explicit judge policy")
 	if err := flags.Parse(args); err != nil {
 		return 1
 	}
@@ -77,6 +79,18 @@ func (c CLI) Run(ctx context.Context, args []string, output, stderr io.Writer) i
 	policy, err := ParsePolicy(data)
 	if err != nil {
 		return fail(err)
+	}
+	if *evalPolicy != "" {
+		if *publish || *resume != "" {
+			return fail(fmt.Errorf("--eval-policy applies to ordinary manual reviews; use service watch for automatic proposal/evaluation workflows"))
+		}
+		judgeBytes, err := os.ReadFile(*evalPolicy)
+		if err != nil {
+			return fail(err)
+		}
+		if _, err := ParseEvaluationPolicy(judgeBytes); err != nil {
+			return fail(err)
+		}
 	}
 	if *publish || *resume != "" {
 		return c.runProposals(ctx, *repo, *number, policy, data, *humans, *resume, *format, output, stderr)
@@ -137,6 +151,15 @@ func (c CLI) Run(ctx context.Context, args []string, output, stderr io.Writer) i
 		return fail(err)
 	}
 	fmt.Fprintln(stderr, "Review report:", filepath.Join(runDir, "report.json"))
+	if *evalPolicy != "" && report.Status != "awaiting_intent" {
+		evalOutput := output
+		if *format == "json" {
+			evalOutput = stderr
+		}
+		if code := c.Eval(evaluationContext, []string{"--run", runDir, "--policy", *evalPolicy}, evalOutput, stderr); code != 0 {
+			return 2
+		}
+	}
 	if report.Status != "lgtm" {
 		return 2
 	}

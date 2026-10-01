@@ -1,7 +1,8 @@
 # Automatic review and evaluation: implementation plan
 
-Status: design and delivery plan, October 1, 2026. This document records the next
-software effort; it does not announce implemented commands or a running evaluator.
+Status: design and delivery plan, October 1, 2026. The first serial prototype
+is implemented; see [runnable commands and boundaries](evaluation.md). The
+remaining sections also describe future DAG, calibration and accounting work.
 The first acceptance target is a PR that Ferretta discovers, reviews, and grades,
 with three visible milestone comments: starting, verdict, and scorecard.
 
@@ -14,11 +15,13 @@ but missing sections do not block admission. Author claims remain claims until
 supported; an agent-authored body does not establish human-confirmed intent or
 grant permissions.
 
-The current service polls PR revisions into SQLite but does not dispatch reviews.
+The original `service run` polls PR revisions into SQLite without dispatch.
+The new explicit `service watch` admits one PR, publishes milestones, evaluates
+its terminal review, and polls authenticated intent replies.
 The manual Ollama reviewer has commit-bound tools, checks, private checkpoints,
 and opt-in GitHub App proposal publication. Manual resume polls authenticated
-human replies once. There is no automatic verdict publication, scorecard judge,
-repair executor, or merge executor. See [service](service.md),
+human replies once. The prototype adds a read-only scorecard judge and automatic
+verdict publication; repair and merge executors remain absent. See [service](service.md),
 [proposal sessions](proposals.md), and [configuration](configuration.md).
 
 Build on those adapters and state boundaries. The first runtime is one local
@@ -34,13 +37,18 @@ configuration, and comments:
 | Role | External output | Authority |
 | --- | --- | --- |
 | Review / repair worker | Findings and evidence, or candidate repair commits | Perform permitted investigation or repair; propose intent questions |
-| Final reviewer / hot seat | Revision-specific acceptance assessment and a stop-or-continue recommendation | Recommend a next action; the core enforces admission, resources, and acceptance |
+| Final reviewer | Revision-specific acceptance assessment and unresolved blockers | Assess agreed acceptance criteria; cannot lower them because resources are scarce |
+| Allocator / hot seat | A stop-or-continue recommendation and proposed resource allocation | Recommend the next action; the core enforces admission and remaining resources |
 | Scorecard judge | An assessment of a worker output or an oversight decision | Grade only; cannot repair, merge, grant resources, or restart work |
 
 Final review and resource allocation remain separate responsibilities even when
 one model performs both. A stop caused by exhausted allowance is an incomplete
 result, not LGTM. Only the core can authorize another round within existing
 permissions. Models can request additional resources, never award themselves any.
+The goal is to reach acceptance within the allowance and stop; allowance is a
+ceiling, not a spending target. The prototype allocator is deterministic core
+policy, reserving required assessment capacity and admitting permitted actions.
+Another model call is unnecessary until choosing among strategies adds value.
 
 The prototype's single reviewer produces the review and terminal decision. Its
 scorecard can assess both roles from that output; it must not imply that two

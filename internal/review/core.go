@@ -29,6 +29,7 @@ type config struct {
 type Policy struct {
 	config      config
 	observation *ContextObservation
+	toolSchema  json.RawMessage
 }
 
 // ContextObservation binds provider-reported prompt usage to an immutable
@@ -40,6 +41,10 @@ type ContextObservation struct {
 }
 
 func ParsePolicy(data []byte) (Policy, error) {
+	return parsePolicy(data, true)
+}
+
+func parsePolicy(data []byte, checksRequired bool) (Policy, error) {
 	var c config
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
@@ -68,8 +73,11 @@ func ParsePolicy(data []byte) (Policy, error) {
 	if c.MaxTurns < 0 || c.MaxTokens < 256 || c.TimeoutSeconds < 0 || c.TimeoutSeconds > 2147483647 {
 		return Policy{}, fmt.Errorf("invalid review resource limits")
 	}
-	if len(c.Checks) == 0 {
+	if checksRequired && len(c.Checks) == 0 {
 		return Policy{}, fmt.Errorf("at least one repository check is required")
+	}
+	if !checksRequired && len(c.Checks) != 0 {
+		return Policy{}, fmt.Errorf("evaluation policy cannot authorize executable checks")
 	}
 	for _, command := range c.Checks {
 		if len(command) == 0 || strings.TrimSpace(command[0]) == "" {
@@ -101,7 +109,8 @@ func checkContext(p Policy, messages []Message) error {
 	if err != nil {
 		return err
 	}
-	used := len(data) + len(tools)
+	schema := p.tools()
+	used := len(data) + len(schema)
 	if p.observation != nil {
 		anchor := p.observation
 		if anchor.MessageCount < 0 || anchor.MessageCount > len(messages) || anchor.PromptTokens <= 0 {
@@ -110,7 +119,7 @@ func checkContext(p Policy, messages []Message) error {
 		// The full marshal above still validates all continuation data. The model's
 		// prompt count already includes the prior tools/template/message prefix.
 		suffix, _ := json.Marshal(messages[anchor.MessageCount:])
-		if anchor.ToolSchema == fmt.Sprintf("%x", sha256.Sum256(tools)) {
+		if anchor.ToolSchema == fmt.Sprintf("%x", sha256.Sum256(schema)) {
 			if anchor.PromptTokens > p.config.ContextTokens {
 				return fmt.Errorf("reported prompt exceeds configured context limit")
 			}

@@ -360,9 +360,10 @@ and saves deduplicated revision observations in SQLite, with one local owner.
 These observations are inputs awaiting policy admission, not scheduled reviews.
 Opt-in proposal sessions now persist conversations and human decisions in SQLite,
 post through the GitHub App, and resume through explicit single-poll commands.
-The DAG scheduler, spending ledger, constraint parsing, automatic comment
-notifications, objective routing, repair waves, and automated merging remain to
-be implemented. The runtime projects
+The explicit scoped watcher now runs a serial durable review/evaluation workflow,
+polls human intent replies, publishes three milestones, and retains model/tool
+usage. The general DAG scheduler, monetary ledger/reservations, constraint parsing,
+objective routing, repair waves, and automated merging remain to be implemented. The runtime projects
 surveyed during design are references; none has been adopted as a dependency.
 The [inspiration catalogue](inspiration.md) records those projects and the
 questions they may help us answer.
@@ -383,7 +384,8 @@ and read-only status; it does not yet implement the control socket.
 
 Poll GitHub first, avoiding a required public webhook endpoint. Polling open PRs
 is implemented. Proposal sessions support manual human-reply polling and
-resumption; automatic service dispatch/reply polling remain subsequent slices. OS ownership locks apply only to the same local state directory, not to
+resumption; the explicit `service watch` command adds automatic dispatch and
+reply polling for one PR with trusted reviewer/judge policy. OS ownership locks apply only to the same local state directory, not to
 independent stores or machines. Do not put this store on a network filesystem.
 
 Recovery must preserve spending, human waits, hard stops and uncertain external
