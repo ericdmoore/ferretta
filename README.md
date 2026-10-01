@@ -1,5 +1,7 @@
 # Ferretta
 
+<img src="assets/ferretta-icon.png" alt="A cheerful ferret crossing cables, with spread orange harness tethers forming a triangle." width="320">
+
 **A local-first PR review harness for correctness, human intent, and implementation tradeoffs.**
 
 Work with any coding agent, using any workflow. Once that agent submits a pull
@@ -222,6 +224,8 @@ pi Coding Agent + openRouter + vLLM
 **Review submitted pull requests for correctness and alignment with human intent**
 
 > Design draft. This README describes the proposed product and architecture, not shipped functionality. Commands, APIs, and configuration below are illustrative. Ferretta targets a pure Go implementation and native executables for amd64 and arm64.
+
+The [configuration specification](docs/configuration.md) includes a proposed challenger amendment for budgeted, repository-specific model exploration and evaluation.
 
 Ferretta is a PR review harness for agent-assisted software development. A human works with any coding agent, through any workflow, and that agent produces software and submits a PR. Only then does Ferretta enter the process: it receives a notification, prepares the review environment, and reviews the proposed commits according to policy configured for the repository.
 

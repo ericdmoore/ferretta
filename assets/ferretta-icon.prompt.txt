@@ -1,0 +1,10 @@
+Generated with the built-in image_gen tool.
+The triangle is a visual motif for three project goal types; corner labels and their mapping remain unspecified.
+
+Use case: logo-brand
+Asset type: square project icon for Ferretta, an AI harness project.
+Primary request: An original cute cartoon ferret wearing a via ferrata climbing harness, happily moving across cables. The spread harness cords must make a very clear triangle, a central visual motif that will later echo three types of project goals.
+Subject: unmistakable cream-and-sable ferret, elongated supple body, small round ears, dark facial mask, bright happy eyes, little pink nose, cheerful smile, long curved tail. Dynamic confident stepping pose on a lower cable, facing toward the right with face visible in three-quarter view.
+Composition: compact centered silhouette on a genuinely transparent background. Two widely separated carabiners clip onto one taut upper cable. Two bold visible harness tethers descend from those carabiners and converge at the ferret's harness attachment, producing an unmistakable inverted triangle with the upper cable as its third edge. Keep this triangular negative space clear, unobscured by the head or body; place ferret mostly below and to one side of it while maintaining a balanced compact mark. A separate lower cable supports the feet. Harness clearly wraps waist and thighs. Entire character, tail, carabiners, triangle fit comfortably within square with generous safe margins.
+Style: polished flat cartoon mascot mark, smooth bold dark outlines, simple expressive shapes, restrained flat colors, minimal shading, warm friendly adventurous mood, legible at small icon sizes. Warm natural ferret coloring and a strongly contrasting climbing harness/tether accent.
+Constraints: one ferret only, exactly two upper attachment carabiners and two spread tethers, preserve triangular structure, no text or letters, no labels on triangle, no mountains, no scenery, no decorative badge, no watermark, no photorealism, no checkerboard painted into background.
