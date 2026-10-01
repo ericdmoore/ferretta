@@ -8,3 +8,6 @@
 #
 # Then the review kicks off wave2 of repairs, where the goal is to fold in the state best aspects 
 # of each of the topK submissions. attempting to fold in the best aspects of each of the topK submissions.
+# 
+# this config might likely lend it self to using:
+# openrouter + cloudflare sandbox?
