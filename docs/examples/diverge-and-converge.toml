@@ -1,0 +1,10 @@
+# A configuration that seeks input from MANY different models
+# In this recipie, we kick off a a parallel-model-bake-off seeking review and repairs from many models basd on PR#p
+#
+# (NOTE maybe each of these bakeoff repairs should be on their own stacked PR on top of PR#p,
+# each repairing the code in their own way, so the bakeoff repairs are not on top of each other)
+#
+# The evaluator looks across all the bake-off-submissions and pick up to k submissions (max k = 4 for now) - each for some stated reason - which will act as intent for Wave2.
+#
+# Then the review kicks off wave2 of repairs, where the goal is to fold in the state best aspects 
+# of each of the topK submissions. attempting to fold in the best aspects of each of the topK submissions.

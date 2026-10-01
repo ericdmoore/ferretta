@@ -1,0 +1,5 @@
+# So you are running Ollama on 64GB RAM; you thoguht that would be enough, 
+# but you learned that switching models hurts - since you have to evict and load a whole new model.
+# 
+# This configuration runs through serially, model by model
+# all done locally (assuming you already pulled these models)
