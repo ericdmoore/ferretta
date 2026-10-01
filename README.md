@@ -78,6 +78,11 @@ wording referred to a missing “change above”; the prompt now explicitly requ
 self-contained intent questions and directs concrete bugs to findings. This
 validates tool execution, not the quality of every model-generated proposal.
 
+A later [live comparison](docs/review-experiments.md) exposed the reviewer asking
+the human to choose its verdict. Clearer finalization guidance yielded an advisory
+LGTM on retry, but evidence coverage, tradeoff explanations, and search ergonomics
+still need work. Successful completion alone does not establish review quality.
+
 ### Website and installation
 
 The Hugo site targets **[ferretta.cc](https://ferretta.cc/)** and serves the root
