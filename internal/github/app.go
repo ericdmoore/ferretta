@@ -140,6 +140,12 @@ func (a *App) Token(ctx context.Context, repo string) (string, error) {
 }
 
 func (a *App) token(ctx context.Context, repo, pullAccess string) (string, error) {
+	return a.scopedToken(ctx, repo, "pull_requests", pullAccess)
+}
+
+// Each effect scope has its own repository-limited credential. Check writes
+// never broaden the tokens handed to Git fetch or comment publication.
+func (a *App) scopedToken(ctx context.Context, repo, permission, access string) (string, error) {
 	if !ValidRepository(repo) {
 		return "", fmt.Errorf("provide a valid owner/repository")
 	}
@@ -152,7 +158,7 @@ func (a *App) token(ctx context.Context, repo, pullAccess string) (string, error
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
-	cacheKey := strings.ToLower(repo) + ":" + pullAccess
+	cacheKey := strings.ToLower(repo) + ":" + permission + ":" + access
 	if cached := a.tokens[cacheKey]; cached.ExpiresAt.After(a.now().Add(time.Minute)) {
 		return cached.Token, nil
 	}
@@ -162,16 +168,16 @@ func (a *App) token(ctx context.Context, repo, pullAccess string) (string, error
 	body, _ := json.Marshal(struct {
 		Repositories []string          `json:"repositories"`
 		Permissions  map[string]string `json:"permissions"`
-	}{[]string{strings.Split(repo, "/")[1]}, map[string]string{"contents": "read", "pull_requests": pullAccess}})
+	}{[]string{strings.Split(repo, "/")[1]}, map[string]string{"contents": "read", permission: access}})
 	var token installationToken
 	if err := a.request(ctx, "POST", fmt.Sprintf("/app/installations/%d/access_tokens", a.installationID), jwt, body, &token); err != nil {
 		return "", err
 	}
-	if strings.TrimSpace(token.Token) == "" || strings.ContainsAny(token.Token, "\r\n") || !token.ExpiresAt.After(a.now().Add(time.Minute)) || token.Permissions["contents"] != "read" || token.Permissions["pull_requests"] != pullAccess {
-		return "", fmt.Errorf("invalid installation token or missing read permissions")
+	if strings.TrimSpace(token.Token) == "" || strings.ContainsAny(token.Token, "\r\n") || !token.ExpiresAt.After(a.now().Add(time.Minute)) || token.Permissions["contents"] != "read" || token.Permissions[permission] != access {
+		return "", fmt.Errorf("invalid installation token or missing requested permissions")
 	}
 	for name, level := range token.Permissions {
-		if (level != "read" && !(name == "pull_requests" && level == pullAccess)) || (name != "contents" && name != "pull_requests" && name != "metadata") {
+		if (level != "read" && !(name == permission && level == access)) || (name != "contents" && name != permission && name != "metadata") {
 			return "", fmt.Errorf("installation token exceeded requested permissions")
 		}
 	}

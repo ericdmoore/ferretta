@@ -28,9 +28,14 @@ func (c CLI) Watch(ctx context.Context, args []string, output, stderr io.Writer)
 	humans := flags.String("humans", "", "comma-separated allowlisted human logins")
 	interval := flags.Duration("interval", time.Minute, "delay between polls (5s–24h)")
 	once := flags.Bool("once", false, "poll and advance permitted workflow stages once")
+	publication := flags.String("publication", "checks", "checks or comments; pinned for the PR workflow")
 	if err := flags.Parse(args); err != nil {
 		return 1
 	}
+	if (*publication != "checks" && *publication != "comments") || (*publication == "checks" && c.Checks == nil) {
+		return fail(fmt.Errorf("--publication requires checks (with a Checks adapter) or comments"))
+	}
+	c.PublicationMode, c.Progress = *publication, stderr
 	source, ok := c.Proposals.(service.Source)
 	if flags.NArg() != 0 || !github.ValidRepository(*repo) || *number <= 0 || *state == "" || *reviewPath == "" || *judgePath == "" || *humans == "" || *interval < 5*time.Second || *interval > 24*time.Hour || !ok {
 		return fail(fmt.Errorf("watch requires --repo, --pr, --state, --review-policy, --judge-policy, --humans, a valid interval and an App connection"))
@@ -56,7 +61,7 @@ func (c CLI) Watch(ctx context.Context, args []string, output, stderr io.Writer)
 		return fail(err)
 	}
 	defer store.Close()
-	fmt.Fprintf(stderr, "Ferretta watch: automatic review, proposals, verdict and scorecard enabled for %s PR #%d only.\n", *repo, *number)
+	fmt.Fprintf(stderr, "Ferretta watch: automatic review, proposals, verdict and scorecard enabled for %s PR #%d only; publication: %s.\n", *repo, *number, *publication)
 	for {
 		if ctx.Err() != nil {
 			return 0
@@ -106,13 +111,19 @@ func workflowStatus(job *workflowJob) any {
 		Head     string            `json:"head"`
 		Phase    workflowPhase     `json:"phase"`
 		Comments map[string]string `json:"comments"`
+		Checks   map[string]string `json:"checks,omitempty"`
 	}
 	runs := []revision{}
 	for _, run := range job.Runs {
-		r := revision{Head: run.Session.Report.PR.Head, Phase: run.Phase, Comments: map[string]string{}}
+		r := revision{Head: run.Session.Report.PR.Head, Phase: run.Phase, Comments: map[string]string{}, Checks: map[string]string{}}
 		for kind, p := range run.Publications {
 			if p.Delivery == Posted {
 				r.Comments[kind] = p.Comment.URL
+			}
+		}
+		for role, effect := range run.Checks {
+			if effect.Delivery == Posted {
+				r.Checks[role] = effect.Result.URL
 			}
 		}
 		runs = append(runs, r)

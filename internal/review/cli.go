@@ -33,9 +33,12 @@ func (Process) Run(ctx context.Context, dir, name string, args ...string) ([]byt
 }
 
 type CLI struct {
-	Runner    Runner
-	Setup     Setup
-	Proposals ProposalGitHub
+	Runner          Runner
+	Setup           Setup
+	Proposals       ProposalGitHub
+	Checks          github.Checks
+	PublicationMode string
+	Progress        io.Writer
 }
 
 type GitHubConnection interface {
@@ -50,7 +53,8 @@ func NewCLI(connection GitHubConnection) CLI {
 		return fmt.Errorf("local model redirects are not permitted")
 	}}
 	proposals, _ := connection.(ProposalGitHub)
-	return CLI{Proposals: proposals, Runner: Runner{Exec: process, Searcher: process, GitHub: connection, Fetch: process.Fetch, Model: Ollama{HTTP: client}, Now: time.Now}, Setup: Setup{HTTP: client, Exec: process, Auth: connection.Status}}
+	checks, _ := connection.(github.Checks)
+	return CLI{Proposals: proposals, Checks: checks, Runner: Runner{Exec: process, Searcher: process, GitHub: connection, Fetch: process.Fetch, Model: Ollama{HTTP: client}, Now: time.Now}, Setup: Setup{HTTP: client, Exec: process, Auth: connection.Status}}
 }
 
 func (c CLI) Run(ctx context.Context, args []string, output, stderr io.Writer) int {

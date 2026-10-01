@@ -136,7 +136,7 @@ func TestWatchRecoveryAndScope(t *testing.T) {
 			_ = os.WriteFile("review.json", []byte(policyJSON), 0600)
 			_ = os.WriteFile("judge.json", []byte(evaluationPolicyJSON()), 0600)
 			state := filepath.Join(t.TempDir(), "state")
-			args := []string{"--repo", "o/r", "--pr", "1", "--state", state, "--review-policy", "review.json", "--judge-policy", "judge.json", "--humans", "human", "--once"}
+			args := []string{"--repo", "o/r", "--pr", "1", "--state", state, "--review-policy", "review.json", "--judge-policy", "judge.json", "--humans", "human", "--publication", "comments", "--once"}
 			m := &fakeModel{replies: workflowReplies()}
 			api := &watchAPI{pulls: []PR{pr()}}
 			c := CLI{Runner: *runner(m), Proposals: api}

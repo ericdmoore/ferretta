@@ -49,8 +49,11 @@ including any remaining WAL; copying a live database file alone is insufficient.
 ## Scoped automatic review
 
 The separate [`service watch` command](evaluation.md) opts into one PR, trusted
-review/judge policies and a human allowlist. It publishes starting, verdict and
-scorecard comments, and polls intent replies. It reuses this store and ownership
+review/judge policies and a human allowlist. It publishes review and evaluation
+Checks with checkpoint progress, and uses comments for intent questions/replies.
+`--publication comments` retains the original three-comment workflow and is
+required when restarting saved workflows from earlier versions.
+It reuses this store and ownership
 lock; run one owner per installation. Supplied boot templates still select intake
 only. Watch requires a matching repository checkout and permits trusted checks
 to execute PR code as the OS user; it is not an execution sandbox.

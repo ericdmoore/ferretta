@@ -1,9 +1,9 @@
 # Automatic reviews and scorecards
 
 The prototype adds an explicit `service watch` command for **one selected PR**.
-It discovers the PR through the GitHub App, publishes a starting comment, reviews
-its exact commits, publishes the verdict, and runs a separate read-only judge
-session that publishes a scorecard. It polls authenticated human replies when a
+It discovers the PR through the GitHub App, creates review and evaluation Checks,
+reviews its exact commits, publishes the verdict, and runs a separate read-only
+judge session that publishes a scorecard. It polls authenticated human replies when a
 review pauses for an intent question. It does not repair or merge.
 
 `service run` remains intake only. Neither command upgrades itself into the other.
@@ -48,6 +48,7 @@ bin/ferretta service watch \
   --state /absolute/private/ferretta-state \
   --review-policy /absolute/trusted/review.json \
   --judge-policy /absolute/trusted/judge.json \
+  --publication checks \
   --humans your-github-login
 ```
 
@@ -58,7 +59,7 @@ dispatched. `--interval 5s` adjusts the delay after each sweep (default one minu
 outcome. A processed incomplete result is still a successful watch invocation;
 inspect the verdict and scorecard for the actual outcome.
 
-The starting comment names both models and settings, exact head/base commits,
+The initial Check details name both models and settings, exact head/base commits,
 policy hashes, active allowances, and a plain-language plan. Review and evaluation
 allowances are separate and cumulative across revisions of the PR. Zero disables
 the corresponding limit. Active-stage accounting includes setup overhead and
@@ -71,6 +72,57 @@ OS user: worktrees and environment filtering are not a security sandbox. Keep
 credentials outside the checkout and use a suitably isolated execution account.
 The judge cannot execute checks, change files, publish, confirm intent, or allocate
 resources. It can read exact-commit files/diffs, search, and inspect saved evidence.
+
+## Checks and progress
+
+`service watch` defaults to `--publication checks`. The GitHub App needs approved
+repository **Checks: read and write** permission; registration and installation
+approval are separate steps. The local PEM and connection JSON stay the same.
+Check publication requests a separate repository-scoped token; Git fetch and
+comment tokens retain their existing scopes. No Actions runner, inbound webhook,
+or public endpoint on the review host is required.
+
+Two entries appear in the PR's Checks section:
+
+| Entry | Meaning |
+| --- | --- |
+| `Ferretta / review` | Starts in progress; an accepted LGTM completes with success, changes required with failure, and incomplete review with action required |
+| `Ferretta / evaluation` | Queues behind review, then runs independently; a completed assessment is neutral, while an incomplete assessment needs attention and preserves the review verdict |
+
+The details show the assigned models, requested settings, allowances, plan, exact
+commits, and policy hashes. Recent activity is updated at saved model/tool
+checkpoints, coalesced to at most one progress update per ten seconds within a
+stage. Stage transitions and final results publish immediately. The same bounded
+activity feed goes to stderr; stdout retains machine-readable workflow status,
+including check URLs. Operation names and recorded durations are public; prompts,
+thinking, tool arguments/results, and private session data are excluded from the
+progress feed. Final reports still include their public findings and explanations.
+
+These are updated Check details, not GitHub Actions streaming logs. A long model
+or tool call may have no new checkpoint; the timestamp is the last observed
+activity, not a heartbeat, completion estimate, or proof of process liveness.
+
+Intent questions still post `PROPOSED` comments. The review Check says it is
+awaiting human confirmation and remains in progress while compute pauses.
+Authenticated `CORRECTED` and `CONFIRMED` replies resume the saved workflow.
+Routine starting/verdict/scorecard comments are omitted in Checks mode. Use
+`--publication comments` for the original three-comment behavior.
+
+Publication mode is pinned with the workflow's policy. Saved jobs from earlier
+versions remain comment jobs and must restart with `--publication comments`.
+Changing the flag does not migrate their effects or reset their allowances;
+automatic migration is not implemented. Do not delete state to switch modes.
+
+Check IDs and exact output are saved before dispatch. A lost response is
+reconciled against the App, external effect ID, commit, and complete output before
+progress continues. Missing, edited or duplicate uncertain results stop for
+operator reconciliation; they are never blindly recreated or patched again.
+Superseded unfinished revisions receive cancelled Checks on their original SHA.
+
+Check rerun buttons/webhook handling, line annotations, a self-hosted Actions
+adapter, and a live log server remain future work. Checks do not enable repair,
+merge, new spending, or branch protection. Keep evaluation informational while
+grading is calibrated. Existing build/test CI remains separate from model review.
 
 ## Read the scorecard
 

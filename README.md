@@ -28,7 +28,7 @@ amd64/arm64 with CGO disabled.
 | GitHub identity | Uses a dedicated GitHub App installation. Fetch tokens are read-only; proposal posting uses separate repository-scoped comment-write tokens. |
 | Setup | `init` discovers local model metadata and creates an Ollama policy; `doctor` checks readiness. Downloads and inference are explicit, separate actions. |
 | Intent inspection | Parses and inspects existing proposal/correction/confirmation comments. Proposal sessions retain authenticated human correction/confirmation evidence. |
-| Background service | Intake-only polling, or explicit `service watch` for one PR with automatic review and human-reply handling. |
+| Background service | Intake-only polling, or explicit `service watch` for one PR with review/evaluation Checks, checkpoint progress, and intent-question comments. |
 | Automated scorecard | A separate read-only judge grades worker output and the oversight decision; records evidence and model/tool usage. |
 
 Reviews can produce findings, an intent question, an advisory LGTM, or an
@@ -44,7 +44,7 @@ and cost/time/quality objectives are described in [configuration decisions](docs
 and [architecture](arch.md); the layered TOML resolver is not implemented.
 
 The [review and scorecard guide](docs/evaluation.md) explains the implemented
-starting/verdict/scorecard flow and its limits. The [implementation plan](docs/review-evaluation.md)
+Checks workflow, legacy comment mode, and their limits. The [implementation plan](docs/review-evaluation.md)
 records the broader effort. Automated grades are assessments, not verified correctness.
 
 To have an agent help author a policy, point it to
