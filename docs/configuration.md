@@ -108,6 +108,10 @@ GitHub App identity under their existing authorization rules.
 - Scoped dispatch: `service watch --repo owner/repo --pr N --state PATH
   --review-policy PATH --judge-policy PATH --humans login`. See the
   [operating guide](evaluation.md) for allowances and recovery.
+- Watch publication: `--publication checks` (default) or `comments`, pinned for
+  the PR workflow. Checks mode retains intent proposal comments and reports
+  routine progress/verdict/scorecard through the App's Checks API. Legacy jobs
+  require `--publication comments`; changing mode needs operator reconciliation.
 - Service intake: `service run --repo owner/repo` (repeatable), `--state` (absolute
   private directory), `--interval` (default `1m`, range `5s`–`24h`), and `--once`.
   Default state is `ferretta/state` beneath `os.UserConfigDir()`; boot service

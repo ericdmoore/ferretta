@@ -16,10 +16,12 @@ not register an app, repair code, or merge PRs. Registration remains a browser s
 2. Choose an available name (for example, `ferretta-ericdmoore`) and use
    `https://github.com/ericdmoore/ferretta` as the homepage.
 3. Leave user OAuth callbacks/device authorization unconfigured. Disable the
-   webhook for the current polling/manual-review version.
+   webhook for polling/manual review. Enable it only when configuring the optional
+   [signed Check retry listener](evaluation.md).
 4. Grant repository **Contents: read-only** and **Pull requests: read/write** for proposal posting
    (read-only is sufficient for inspection and ordinary review).
-   Metadata read access is supplied by GitHub. No organization or account
+   For `service watch --publication checks` (the default), also grant
+   **Checks: read and write**. Metadata read access is supplied by GitHub. No organization or account
    permissions are needed. Select installation on your account only for now.
 5. Create the app, copy its **Client ID** (numeric App ID also works), and
    generate a private key. Move the downloaded PEM outside your checkout into
@@ -32,6 +34,12 @@ App registration and installation are separate: an app ID is not an
 installation ID. A browser user-login token is not an installation token.
 GitHub's installation lookup verifies that the configured app/installation
 actually belongs to the requested repository before minting a token.
+
+For an existing App, add Checks under **Permissions & events**, save, and approve
+the updated permissions in the installation settings. Changing the registration
+alone does not upgrade an existing installation. Keep the same PEM, client ID,
+installation ID, and local connection JSON. Polling needs no webhook changes.
+See [GitHub's permission update guide](https://docs.github.com/en/apps/maintaining-github-apps/modifying-a-github-app-registration).
 
 See GitHub's [installation authentication documentation](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation).
 
@@ -113,7 +121,8 @@ The app signs RS256 JWTs using an injected clock, backdating issuance by one
 minute and expiring them nine minutes after the current time. Each installation
 fetch token requests only the target repository and Contents/Pull requests read
 permissions. Explicit proposal creation uses a separately cached token with
-Contents read and Pull requests write. Tokens
+Contents read and Pull requests write. Check reads and writes use separate tokens
+with Contents read and only the corresponding Checks access. Tokens
 are cached in memory per repository and permission scope and renewed when at most one minute remains.
 They are never written to reports, checkpoints, Git configuration, or config files.
 Concurrent requests share token creation. API redirects are refused. Failures
@@ -147,13 +156,14 @@ mismatches/suspension, insufficient/excess permissions, redirects, invalid key
 files, and credential handling at the process boundary.
 
 After registering an app, run the separate read-only adapter suite against an
-existing PR with comments:
+existing PR with comments and check runs (the installation needs Checks read):
 
 ```sh
 FERRETTA_TEST_REPO=ericdmoore/ferretta FERRETTA_TEST_PR=1 make test-network-app
 ```
 
 This suite uses the machine app configuration, verifies identity/access, fetches
-PR metadata and comments, and never posts. Token issuance is its only POST.
+PR metadata, comments and check runs, and never posts comments or writes Checks.
+Token issuance is its only POST.
 The older `make test-network` fixture still supports anonymous/PAT-based API
 reads; that test-only path is not a CLI authentication fallback.

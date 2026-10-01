@@ -84,13 +84,13 @@ func (s *Store) open(dir string) error {
 	if err := s.db.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
 		return err
 	}
-	if version < 0 || version > 2 {
+	if version < 0 || version > 3 {
 		return fmt.Errorf("unsupported state schema %d", version)
 	}
 	if _, err := s.db.Exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;"); err != nil {
 		return err
 	}
-	if version == 2 {
+	if version == 3 {
 		return nil
 	}
 	tx, err := s.db.Begin()
@@ -103,7 +103,13 @@ func (s *Store) open(dir string) error {
 			return err
 		}
 	}
-	if _, err := tx.Exec(`CREATE TABLE review_session (id TEXT PRIMARY KEY, data BLOB NOT NULL); PRAGMA user_version=2;`); err != nil {
+	if version < 2 {
+		if _, err := tx.Exec(`CREATE TABLE review_session (id TEXT PRIMARY KEY, data BLOB NOT NULL)`); err != nil {
+			return err
+		}
+	}
+	if _, err := tx.Exec(`CREATE TABLE retry_inbox (id TEXT PRIMARY KEY, data BLOB NOT NULL, outcome TEXT NOT NULL DEFAULT '');
+PRAGMA user_version=3;`); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -200,7 +206,7 @@ func ReadStatus(ctx context.Context, dir string) (Status, error) {
 	if err := tx.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
 		return Status{}, err
 	}
-	if version != 1 && version != 2 {
+	if version != 1 && version != 2 && version != 3 {
 		return Status{}, fmt.Errorf("unsupported state schema %d", version)
 	}
 	result := Status{Mode: "intake-only", Polls: []Poll{}, Candidates: []Revision{}}

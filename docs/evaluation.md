@@ -1,9 +1,9 @@
 # Automatic reviews and scorecards
 
 The prototype adds an explicit `service watch` command for **one selected PR**.
-It discovers the PR through the GitHub App, publishes a starting comment, reviews
-its exact commits, publishes the verdict, and runs a separate read-only judge
-session that publishes a scorecard. It polls authenticated human replies when a
+It discovers the PR through the GitHub App, creates review and evaluation Checks,
+reviews its exact commits, publishes the verdict, and runs a separate read-only
+judge session that publishes a scorecard. It polls authenticated human replies when a
 review pauses for an intent question. It does not repair or merge.
 
 `service run` remains intake only. Neither command upgrades itself into the other.
@@ -48,6 +48,7 @@ bin/ferretta service watch \
   --state /absolute/private/ferretta-state \
   --review-policy /absolute/trusted/review.json \
   --judge-policy /absolute/trusted/judge.json \
+  --publication checks \
   --humans your-github-login
 ```
 
@@ -58,7 +59,7 @@ dispatched. `--interval 5s` adjusts the delay after each sweep (default one minu
 outcome. A processed incomplete result is still a successful watch invocation;
 inspect the verdict and scorecard for the actual outcome.
 
-The starting comment names both models and settings, exact head/base commits,
+The initial Check details name both models and settings, exact head/base commits,
 policy hashes, active allowances, and a plain-language plan. Review and evaluation
 allowances are separate and cumulative across revisions of the PR. Zero disables
 the corresponding limit. Active-stage accounting includes setup overhead and
@@ -71,6 +72,111 @@ OS user: worktrees and environment filtering are not a security sandbox. Keep
 credentials outside the checkout and use a suitably isolated execution account.
 The judge cannot execute checks, change files, publish, confirm intent, or allocate
 resources. It can read exact-commit files/diffs, search, and inspect saved evidence.
+
+## Checks and progress
+
+`service watch` defaults to `--publication checks`. The GitHub App needs approved
+repository **Checks: read and write** permission; registration and installation
+approval are separate steps. The local PEM and connection JSON stay the same.
+Check publication requests a separate repository-scoped token; Git fetch and
+comment tokens retain their existing scopes. No Actions runner, inbound webhook,
+or public endpoint on the review host is required.
+
+Two entries appear in the PR's Checks section:
+
+| Entry | Meaning |
+| --- | --- |
+| `Ferretta / review` | Starts in progress; an accepted LGTM completes with success, changes required with failure, and incomplete review with action required |
+| `Ferretta / evaluation` | Queues behind review, then runs independently; a completed assessment is neutral, while an incomplete assessment needs attention and preserves the review verdict |
+
+The details show the assigned models, requested settings, allowances, plan, exact
+commits, and policy hashes. Recent activity is updated at saved model/tool
+checkpoints, coalesced to at most one progress update per ten seconds within a
+stage. Stage transitions and final results publish immediately. The same bounded
+activity feed goes to stderr; stdout retains machine-readable workflow status,
+including check URLs. Operation names and recorded durations are public; prompts,
+thinking, tool arguments/results, and private session data are excluded from the
+progress feed. Final reports still include their public findings and explanations.
+
+These are updated Check details, not GitHub Actions streaming logs. A long model
+or tool call may have no new checkpoint; the timestamp is the last observed
+activity, not a heartbeat, completion estimate, or proof of process liveness.
+
+Intent questions still post `PROPOSED` comments. The review Check says it is
+awaiting human confirmation and remains in progress while compute pauses.
+Authenticated `CORRECTED` and `CONFIRMED` replies resume the saved workflow.
+Routine starting/verdict/scorecard comments are omitted in Checks mode. Use
+`--publication comments` for the original three-comment behavior.
+
+Publication mode is pinned with the workflow's policy. Saved jobs from earlier
+versions remain comment jobs and must restart with `--publication comments`.
+Changing the flag does not migrate their effects or reset their allowances;
+automatic migration is not implemented. Do not delete state to switch modes.
+
+Check IDs and exact output are saved before dispatch. A lost response is
+reconciled against the App, external effect ID, commit, and complete output before
+progress continues. Missing, edited or duplicate uncertain results stop for
+operator reconciliation; they are never blindly recreated or patched again.
+Superseded unfinished revisions receive cancelled Checks on their original SHA.
+
+Line annotations, a self-hosted Actions adapter, and a live log server remain
+future work. Checks do not enable repair, merge, extra allowances, or branch protection. Keep evaluation informational while
+grading is calibrated. Existing build/test CI remains separate from model review.
+
+## Retry a Check
+
+Retrying `Ferretta / review` creates a fresh model session and new review/evaluation
+Checks on the same head/base commits. Retrying `Ferretta / evaluation` creates
+only a new judge session and evaluation Check, reusing the original review evidence
+and leaving its Check unchanged. Previous attempts, request identity, actor,
+source Check and policy provenance remain in SQLite. New Check summaries identify
+the retry. Cumulative review/evaluation compute allowances are never reset;
+configured turn/context limits still apply to each model session.
+
+Only the latest completed attempt on the current revision is eligible. Stale
+Checks, pending intent questions, exhausted allowances and uncertain interrupted
+consumption are rejected. A request ID is idempotent, and the same source Check
+cannot grant multiple retries under different delivery IDs. Use the new Check for
+another intentional attempt. Confirmed intent is preserved for same-revision
+review retries; cross-revision carry-forward remains [issue #7](https://github.com/ericdmoore/ferretta/issues/7).
+
+An operator can retry without an inbound endpoint. Stop the watcher first so the
+same state directory has one owner, then reuse its policies and human allowlist:
+
+```sh
+bin/ferretta service watch --repo ericdmoore/ferretta --pr 6 \
+  --state /absolute/private/state --review-policy .ferretta/review.json \
+  --judge-policy /absolute/private/judge.json --humans ericdmoore \
+  --once --retry-check CHECK_RUN_ID --retry-id operator-attempt-1
+```
+
+`CHECK_RUN_ID` is the numeric ID in the Check details URL. Choose a new request ID
+for a new intentional attempt; reuse it if command delivery/outcome is uncertain.
+Neither restarting the watcher nor deleting state is the retry mechanism.
+
+To use GitHub's **individual Check re-run control**, configure optional webhook
+delivery. This handles `check_run.rerequested`; suite-wide **Re-run all** is not
+implemented. GitHub sends the signal; it does not run the model itself.
+
+1. Create a random webhook secret of at least 32 characters. Store it outside the
+   repository in a private regular file (mode 0600), and enter the same value in
+   the GitHub App's webhook settings. It is separate from the App's PEM key.
+2. Start continuous watch with `--webhook-listen 127.0.0.1:8787` and
+   `--webhook-secret-file /absolute/private/webhook-secret`, alongside the usual
+   repository, PR, policies, state and human allowlist arguments. Do not add `--once`.
+3. Forward a public HTTPS URL to `http://127.0.0.1:8787/github/webhook` using your
+   reverse proxy/tunnel, preserving the request body and GitHub headers. Set that
+   HTTPS URL as the App webhook URL and activate webhook delivery. Checks write
+   permission provides the relevant Check event subscription.
+4. An allowlisted human can re-request an individual Ferretta Check. The watcher
+   verifies the HMAC-SHA256 signature, installation, repository, App and sender,
+   persists the request before acknowledging it, and processes it on the next poll.
+   Receipt acknowledgement means queued, not admitted; logs report acceptance or
+   rejection. Unrelated events are ignored. Repeated delivery does not repeat work.
+
+The listener binds only to loopback and never starts a tunnel. Keep the service
+running for button delivery; durable queued requests survive restarts. This does
+not require a GitHub Actions runner. See GitHub's [re-request API](https://docs.github.com/en/rest/checks/runs#rerequest-a-check-run).
 
 ## Read the scorecard
 
@@ -129,7 +235,8 @@ There is no reconciliation/allowance-reset UI yet; do not delete state to retry.
 Known human waits resume automatically on the same revision and policy.
 
 Completed revisions do not spend again on repeated polls or a force-push back to
-an already observed head/base pair. New revisions retain history and cumulative
+an already observed head/base pair. Explicit admitted Check retries create separate
+attempts. New revisions retain history and cumulative
 allowances. Changed policy or human allowlist requires operator reconciliation.
 A superseded run never approves the new head. Watch stdout exposes phases,
 comment URLs, and active time; `service status` remains an intake snapshot, not a

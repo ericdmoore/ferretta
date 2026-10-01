@@ -43,11 +43,15 @@ type publication struct {
 
 type workflowRun struct {
 	ID                 string                  `json:"id"`
+	Retry              *retryRequest           `json:"retry,omitempty"`
+	RetryParent        string                  `json:"retry_parent,omitempty"`
+	ReviewSource       string                  `json:"review_source,omitempty"`
 	Phase              workflowPhase           `json:"phase"`
 	Session            managedSession          `json:"session"`
 	Evaluation         *Evaluation             `json:"evaluation,omitempty"`
 	EvaluationMessages []Message               `json:"evaluation_messages,omitempty"`
 	Publications       map[string]*publication `json:"publications"`
+	Checks             map[string]*checkEffect `json:"checks,omitempty"`
 }
 
 // Each PR owns cumulative allowances and all revision attempts. New commits do
@@ -60,6 +64,8 @@ type workflowJob struct {
 	Humans               []string       `json:"humans"`
 	ReviewPolicy         string         `json:"review_policy_sha256"`
 	JudgePolicy          string         `json:"judge_policy_sha256"`
+	Publication          string         `json:"publication,omitempty"`
+	AppID                int64          `json:"app_id,omitempty"`
 	ReviewNanos          int64          `json:"review_active_ns"`
 	EvaluationNanos      int64          `json:"evaluation_active_ns"`
 	ConsumptionUncertain bool           `json:"consumption_uncertain"`
@@ -74,15 +80,33 @@ func (c CLI) advanceWorkflow(ctx context.Context, store workflowStore, repo stri
 	if err != nil {
 		return nil, err
 	}
+	mode := publicationMode(c.PublicationMode)
+	if mode != "comments" && mode != "checks" {
+		return nil, fmt.Errorf("publication must be checks or comments")
+	}
+	if mode == "checks" && (c.Checks == nil || identity.AppID <= 0) {
+		return nil, fmt.Errorf("Checks publication requires a Checks adapter and App identity")
+	}
 	if err := (intent.Policy{Humans: humans, Agents: []string{identity.BotLogin}}).Validate(); err != nil {
 		return nil, err
 	}
 	key := fmt.Sprintf("workflow-v1:%s:%d", strings.ToLower(repo), pr.Number)
 	job := &workflowJob{Version: 1, Repository: repo, PR: pr.Number, Bot: identity.BotLogin, Humans: humans, ReviewPolicy: hashBytes(reviewBytes), JudgePolicy: hashBytes(judgeBytes)}
+	job.Publication, job.AppID = mode, identity.AppID
 	data, err := store.Review(ctx, key)
 	if err == nil {
 		if err := json.Unmarshal(data, job); err != nil {
 			return nil, err
+		}
+		// Decode legacy omitted fields as legacy values, not current defaults.
+		var stored struct {
+			Publication string `json:"publication"`
+			AppID       int64  `json:"app_id"`
+		}
+		_ = json.Unmarshal(data, &stored)
+		job.Publication, job.AppID = publicationMode(stored.Publication), stored.AppID
+		if job.Publication != mode || (mode == "checks" && job.AppID != identity.AppID) {
+			return nil, fmt.Errorf("publication mode or App identity changed; resume legacy jobs with --publication comments; operator reconciliation required")
 		}
 		if job.Version != 1 || job.Repository != repo || job.PR != pr.Number || job.Bot != identity.BotLogin || job.ReviewPolicy != hashBytes(reviewBytes) || job.JudgePolicy != hashBytes(judgeBytes) || strings.Join(job.Humans, ",") != strings.Join(humans, ",") || job.ReviewNanos < 0 || job.EvaluationNanos < 0 {
 			return nil, fmt.Errorf("workflow identity, policies, human allowlist, or accounting changed; operator reconciliation required")
@@ -103,6 +127,38 @@ func (c CLI) advanceWorkflow(ctx context.Context, store workflowStore, repo stri
 	if len(job.Runs) > 0 {
 		run = job.Runs[len(job.Runs)-1]
 	}
+	for _, previous := range job.Runs {
+		for _, role := range []string{"review", "evaluation"} {
+			effect := previous.Checks[role]
+			if effect == nil {
+				continue
+			}
+			if effect.Delivery == Posted {
+				if _, _, err := reconcileCheck(effect, []github.CheckRun{effect.Result}, job.AppID); err != nil {
+					return job, err
+				}
+			} else if effect.Delivery == Uncertain {
+				if err := c.reconcileCheckEffect(ctx, repo, effect, job.AppID, save); err != nil {
+					return job, err
+				}
+			} else if effect.Delivery != Draft || effect.Request.Validate() != nil {
+				return job, fmt.Errorf("invalid persisted check state")
+			}
+		}
+	}
+	if c.Retry != nil {
+		next, err := planRetry(job, *c.Retry, pr, reviewPolicy, judgePolicy)
+		if err != nil {
+			return job, retryRejected{err}
+		}
+		if next != nil {
+			job.Runs = append(job.Runs, next)
+			run = next
+			if err := save(); err != nil {
+				return job, err
+			}
+		}
+	}
 	if run != nil && (run.Session.Report.PR.Head != pr.Head || run.Session.Report.PR.Base != pr.Base) {
 		// A prior in-flight operation must be reconciled before more work, even
 		// when the PR has advanced. Completed history remains available.
@@ -110,7 +166,7 @@ func (c CLI) advanceWorkflow(ctx context.Context, store workflowStore, repo stri
 			job.ConsumptionUncertain = true
 		}
 		if run.Phase != workflowDone {
-			if err := c.publishWorkflow(ctx, run, "superseded", fmt.Sprintf("Ferretta run `%s` applies to commit `%s` and has been superseded by `%s`. It does not approve the new revision.", run.ID, run.Session.Report.PR.Head, pr.Head), repo, pr.Number, job.Bot, save); err != nil {
+			if err := c.publishMilestone(ctx, job, run, "superseded", fmt.Sprintf("Ferretta run `%s` applies to commit `%s` and has been superseded by `%s`. It does not approve the new revision.", run.ID, run.Session.Report.PR.Head, pr.Head), save); err != nil {
 				return job, err
 			}
 			run.Phase = workflowDone
@@ -148,7 +204,7 @@ func (c CLI) advanceWorkflow(ctx context.Context, store workflowStore, repo stri
 		case workflowStart:
 			body := startingComment(pr, run.ID, reviewPolicy, judgePolicy, job.ReviewNanos, job.EvaluationNanos)
 			body += fmt.Sprintf("\nTrusted policy SHA-256: reviewer `%s`; judge `%s`.\n", job.ReviewPolicy, job.JudgePolicy)
-			if err := c.publishWorkflow(ctx, run, "starting", body, repo, pr.Number, job.Bot, save); err != nil {
+			if err := c.publishMilestone(ctx, job, run, "starting", body, save); err != nil {
 				return job, err
 			}
 			run.Phase = workflowReview
@@ -175,6 +231,9 @@ func (c CLI) advanceWorkflow(ctx context.Context, store workflowStore, repo stri
 					return job, err
 				}
 				if !ready {
+					if err := c.publishMilestone(ctx, job, run, "waiting", "Awaiting authenticated human intent confirmation.\n\n"+run.Session.Report.Question, save); err != nil {
+						return job, err
+					}
 					return job, nil
 				}
 			}
@@ -195,7 +254,10 @@ func (c CLI) advanceWorkflow(ctx context.Context, store workflowStore, repo stri
 			if err := c.executeWorkflowReview(ctx, run, remaining, reviewBytes, func(report Report, messages []Message) error {
 				run.Session.Session = Session{Report: report, Messages: messages}
 				job.ReviewNanos = before + int64(elapsed(started, c.Runner.Now()))
-				return save()
+				if err := save(); err != nil {
+					return err
+				}
+				return c.publishProgress(ctx, job, run, "review", startingComment(pr, run.ID, reviewPolicy, judgePolicy, job.ReviewNanos, job.EvaluationNanos), report.Usage, save)
 			}); err != nil {
 				run.Session.Report.Status = "incomplete"
 				run.Session.Report.Summary = err.Error()
@@ -212,7 +274,7 @@ func (c CLI) advanceWorkflow(ctx context.Context, store workflowStore, repo stri
 				run.Phase = workflowWaiting
 			}
 		case workflowVerdict:
-			if err := c.publishWorkflow(ctx, run, "verdict", verdictComment(run.Session.Report), repo, pr.Number, job.Bot, save); err != nil {
+			if err := c.publishMilestone(ctx, job, run, "verdict", verdictComment(run.Session.Report), save); err != nil {
 				return job, err
 			}
 			run.Phase = workflowEvaluate
@@ -226,6 +288,11 @@ func (c CLI) advanceWorkflow(ctx context.Context, store workflowStore, repo stri
 			run.Evaluation.FinishedAt = c.Runner.Now()
 			run.Phase = workflowScorecard
 		case workflowEvaluate:
+			if mode == "checks" {
+				if err := c.publishCheck(ctx, job, run, "evaluation", "in_progress", "", "Evaluating review output", startingComment(pr, run.ID, reviewPolicy, judgePolicy, job.ReviewNanos, job.EvaluationNanos), save); err != nil {
+					return job, err
+				}
+			}
 			snapshot, err := SnapshotReview(run.Session.Report)
 			remaining, limitErr := remainingPolicy(judgePolicy.route, job.EvaluationNanos)
 			if err != nil || limitErr != nil || job.ConsumptionUncertain {
@@ -243,7 +310,10 @@ func (c CLI) advanceWorkflow(ctx context.Context, store workflowStore, repo stri
 				run.Evaluation = &e
 				run.EvaluationMessages = messages
 				job.EvaluationNanos = before + int64(elapsed(started, c.Runner.Now()))
-				return save()
+				if err := save(); err != nil {
+					return err
+				}
+				return c.publishProgress(ctx, job, run, "evaluation", startingComment(pr, run.ID, reviewPolicy, judgePolicy, job.ReviewNanos, job.EvaluationNanos), e.Usage, save)
 			})
 			run.Evaluation = &eval
 			job.EvaluationNanos = before + int64(elapsed(started, c.Runner.Now()))
@@ -256,10 +326,13 @@ func (c CLI) advanceWorkflow(ctx context.Context, store workflowStore, repo stri
 			if p := run.Publications["verdict"]; p != nil {
 				body += "\nReviewed output: " + p.Comment.URL + "\n"
 			}
+			if p := run.Checks["review"]; p != nil {
+				body += "\nReviewed output: " + p.Result.URL + "\n"
+			}
 			if run.Evaluation.RequestedModel == run.Session.Report.RequestedModel {
 				body += "\nReviewer and judge use the same model in separate sessions; this is not an independent model opinion.\n"
 			}
-			if err := c.publishWorkflow(ctx, run, "scorecard", body, repo, pr.Number, job.Bot, save); err != nil {
+			if err := c.publishMilestone(ctx, job, run, "scorecard", body, save); err != nil {
 				return job, err
 			}
 			run.Phase = workflowDone
@@ -307,7 +380,7 @@ func (c CLI) executeWorkflowReview(ctx context.Context, run *workflowRun, p Poli
 		_, _ = c.Runner.Exec.Run(cleanup, "", "git", "worktree", "remove", "--force", workspace)
 	}()
 	if len(run.Session.Messages) == 0 {
-		run.Session.Report = c.Runner.Review(ctx, p, w, policyBytes, checkpoint)
+		run.Session.Report = c.Runner.reviewWithIntent(ctx, p, w, policyBytes, run.Session.Report.Proposals, checkpoint)
 	} else {
 		run.Session.Report = c.Runner.continueReview(ctx, p, w, run.Session.Session, checkpoint)
 	}

@@ -81,7 +81,7 @@ func TestReviewCheckpointMigrationAndOwnership(t *testing.T) {
 	s, dir := openTestStore(t)
 	// Simulate a real v1 intake database and migrate it without losing intake.
 	record(t, s, snapshot(t, "o/r", []github.PullRequest{testPR(1)}, testTime))
-	if _, err := s.db.Exec("DROP TABLE review_session; PRAGMA user_version=1"); err != nil {
+	if _, err := s.db.Exec("DROP TABLE review_session; DROP TABLE retry_inbox; PRAGMA user_version=1"); err != nil {
 		t.Fatal(err)
 	}
 	s.Close()
