@@ -8,7 +8,7 @@ and help do not require credentials.
 
 This implementation supports github.com, one app/installation per process, and
 review and service intake polling, plus opt-in proposal comment posting. It does
-not register an app, repair code, or merge PRs. Registration remains a browser step.
+not register an app or merge PRs. The watcher can opt into [bounded repairs](repairs.md). Registration remains a browser step.
 
 ## Register and install
 
@@ -21,7 +21,7 @@ not register an app, repair code, or merge PRs. Registration remains a browser s
 4. Grant repository **Contents: read-only** and **Pull requests: read/write** for proposal posting
    (read-only is sufficient for inspection and ordinary review).
    For `service watch --publication checks` (the default), also grant
-   **Checks: read and write**. Metadata read access is supplied by GitHub. No organization or account
+   **Checks: read and write**. Opt-in repairs additionally require **Contents: read and write**; fetches retain read-only tokens, and only the publication executor obtains a separate contents-write token. Metadata read access is supplied by GitHub. No organization or account
    permissions are needed. Select installation on your account only for now.
 5. Create the app, copy its **Client ID** (numeric App ID also works), and
    generate a private key. Move the downloaded PEM outside your checkout into

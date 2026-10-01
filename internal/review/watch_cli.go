@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -29,6 +30,7 @@ func (c CLI) Watch(ctx context.Context, args []string, output, stderr io.Writer)
 	authors := flags.String("authors", "", "comma-separated authors allowed to execute in --all-prs mode; forks excluded")
 	state := flags.String("state", "", "absolute private installation state directory")
 	reviewPath := flags.String("review-policy", "", "trusted reviewer JSON policy")
+	repairPath := flags.String("repair-policy", "", "optional trusted bounded repair JSON policy; enables App-authenticated pushes")
 	judgePath := flags.String("judge-policy", "", "trusted read-only judge JSON policy")
 	humans := flags.String("humans", "", "comma-separated allowlisted human logins")
 	interval := flags.Duration("interval", time.Minute, "delay between polls (5s–24h)")
@@ -77,6 +79,20 @@ func (c CLI) Watch(ctx context.Context, args []string, output, stderr io.Writer)
 	judge, err := ParseEvaluationPolicy(judgeBytes)
 	if err != nil {
 		return fail(err)
+	}
+	if *repairPath != "" {
+		if *publication != "checks" || c.RepairGit == nil {
+			return fail(fmt.Errorf("repair policy requires Checks mode and a repair executor"))
+		}
+		data, err := os.ReadFile(*repairPath)
+		if err != nil {
+			return fail(err)
+		}
+		repair, err := ParseRepairPolicy(data)
+		if err != nil {
+			return fail(err)
+		}
+		c.Repair, c.RepairRoot = &repair, filepath.Join(*state, "repairs")
 	}
 	store, err := service.OpenStore(*state)
 	if err != nil {
@@ -251,6 +267,7 @@ func workflowStatus(job *workflowJob) any {
 		Runs              []revision `json:"runs"`
 		ReviewSeconds     float64    `json:"review_active_seconds"`
 		EvaluationSeconds float64    `json:"evaluation_active_seconds"`
+		RepairSeconds     float64    `json:"repair_active_seconds"`
 		Uncertain         bool       `json:"consumption_uncertain"`
-	}{job.Repository, job.PR, runs, float64(job.ReviewNanos) / 1e9, float64(job.EvaluationNanos) / 1e9, job.ConsumptionUncertain}
+	}{job.Repository, job.PR, runs, float64(job.ReviewNanos) / 1e9, float64(job.EvaluationNanos) / 1e9, float64(job.RepairNanos) / 1e9, job.ConsumptionUncertain}
 }

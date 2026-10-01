@@ -19,12 +19,14 @@ type PullRequest struct {
 	Draft          bool   `json:"isDraft"`
 	Author         string `json:"author,omitempty"`
 	HeadRepository string `json:"headRepository,omitempty"`
+	HeadRef        string `json:"headRefName,omitempty"`
 }
 
 type pullResponse struct {
 	Number int `json:"number"`
 	Head   struct {
 		SHA  string `json:"sha"`
+		Ref  string `json:"ref"`
 		Repo struct {
 			FullName string `json:"full_name"`
 		} `json:"repo"`
@@ -43,7 +45,7 @@ type pullResponse struct {
 }
 
 func (p pullResponse) pullRequest() PullRequest {
-	return PullRequest{Number: p.Number, Head: p.Head.SHA, Base: p.Base.SHA, URL: p.URL, Title: p.Title, Body: p.Body, State: strings.ToUpper(p.State), Draft: p.Draft, Author: p.User.Login, HeadRepository: p.Head.Repo.FullName}
+	return PullRequest{Number: p.Number, Head: p.Head.SHA, Base: p.Base.SHA, URL: p.URL, Title: p.Title, Body: p.Body, State: strings.ToUpper(p.State), Draft: p.Draft, Author: p.User.Login, HeadRepository: p.Head.Repo.FullName, HeadRef: p.Head.Ref}
 }
 
 func (c Client) PullRequest(ctx context.Context, repo string, number int) (PullRequest, error) {

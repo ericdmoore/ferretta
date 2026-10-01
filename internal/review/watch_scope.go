@@ -99,7 +99,7 @@ func routeWatchRetries(ctx context.Context, store workflowStore, repo string, pu
 		if err := json.Unmarshal(data, &job); err != nil {
 			return nil, nil, err
 		}
-		if job.Version != 1 || job.Repository != repo || job.PR != pr.Number {
+		if (job.Version != 1 && job.Version != 2) || job.Repository != repo || job.PR != pr.Number {
 			return nil, nil, fmt.Errorf("invalid saved retry ownership")
 		}
 		for _, run := range job.Runs {
