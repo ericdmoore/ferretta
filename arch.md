@@ -124,6 +124,11 @@ Model approval alone never authorizes stale or incompletely checked code.
 
 ## 7. Hot-seat model and the Intern
 
+The [review and evaluation implementation plan](docs/review-evaluation.md)
+distinguishes the hot seat's stop-or-continue decision from a separate scorecard
+judge assessing that decision. It defines worker and oversight rubrics and an
+explainable PR roll-up; scorecards do not themselves authorize further work.
+
 The hot-seat model assesses whether more work is worth its expected cost. It
 may also synthesize results and publish ordinary implementation notes. Its
 recommendation is one of:

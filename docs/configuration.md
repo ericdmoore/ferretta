@@ -36,6 +36,11 @@ They are design examples, not configuration accepted by the current CLI.
 The separate [workflow syntax comparison](workflow-syntax.md) records both
 dependency stages and ordered waves without selecting either format.
 
+The [review/evaluation plan](review-evaluation.md) adds proposed separate reviewer
+and judge routes, role-specific rubric versions, grading allowances, and milestone
+publication settings. These are future surfaces, not new keys accepted by the
+current JSON policy or a settled TOML schema.
+
 | Preset | Primary optimization | Unchanged requirements |
 | --- | --- | --- |
 | `cost` (default) | Minimize additional spending | Capabilities, authorized routes, hard limits and acceptance gates |

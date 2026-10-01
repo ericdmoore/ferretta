@@ -41,6 +41,11 @@ OpenRouter inference, and gated repairs/merging. The agreed configuration layers
 and cost/time/quality objectives are described in [configuration decisions](docs/configuration.md)
 and [architecture](arch.md); the layered TOML resolver is not implemented.
 
+The next [automatic review and evaluation effort](docs/review-evaluation.md)
+defines starting/verdict/scorecard comments, role-specific grading, resource
+accounting, and an end-to-end acceptance run. It is an implementation plan;
+automatic dispatch and grading are not yet available.
+
 To have an agent help author a policy, point it to
 [skills/ferretta-config/SKILL.md](skills/ferretta-config/SKILL.md) in this checkout.
 The skill distinguishes supported configuration from proposed TOML examples.
