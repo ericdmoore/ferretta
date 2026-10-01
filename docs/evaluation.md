@@ -26,11 +26,11 @@ implemented. For example, save this as a trusted judge policy outside PR control
   "context_tokens": 131072,
   "max_turns": 0,
   "max_tokens_per_turn": 16384,
-  "timeout_seconds": 300
+  "timeout_seconds": 600
 }
 ```
 
-This example allows unlimited judge turns within a five-minute active-stage
+This example allows unlimited judge turns within a ten-minute active-stage
 allowance. Choose installed models with sufficient capacity; model names do not
 establish capability. Reviewer and judge may use the same model in separate
 sessions, but the scorecard discloses that this is not an independent model

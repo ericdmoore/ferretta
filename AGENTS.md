@@ -72,6 +72,12 @@ Use `compatible` for `/v1/models`. The separate inference suite requires an
 explicit absolute `FERRETTA_TEST_MODEL_POLICY` and `make test-network-model-tools`.
 Normal tests never invoke either live suite.
 
+`thinking: "provider_default"` is an explicit policy choice that sends Ollama
+`think:null`. Missing thinking-control metadata may be accepted only in this mode;
+tools/thinking capability, local routing and context checks remain mandatory.
+Enabled state and effective effort remain unknown. Never silently downgrade an
+`enabled`/named-effort policy or let `init --thinking auto` select this mode.
+
 The Hugo site lives in site/. Run make tools-site once to install the pinned
 compiler, then make site-check for template/link/installer validation. The Pages
 workflow uses the same commands and deploys only main. Keep install.sh as the

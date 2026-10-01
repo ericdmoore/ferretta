@@ -51,6 +51,11 @@ This repository already has a policy; to try a different model, use another path
 bin/ferretta init --model qwen3:4b-thinking --policy .ferretta/local-review.json
 ```
 
+For an installed model whose thinking controls are not reported, an explicit
+[`--thinking provider_default` policy](configuration.md)
+can accept the model default while keeping its effective thinking setting unknown.
+Automatic setup never silently makes that choice.
+
 Use the same `--policy` path with subsequent commands. `--yes` supports unattended
 setup but requires explicit `--model` and `--check '["make","check"]` arguments.
 New policies request a 16,384-token context, 100 turns, at most 4,096 generated
