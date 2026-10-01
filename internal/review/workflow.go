@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -52,6 +53,7 @@ type workflowRun struct {
 	EvaluationMessages []Message               `json:"evaluation_messages,omitempty"`
 	Publications       map[string]*publication `json:"publications"`
 	Checks             map[string]*checkEffect `json:"checks,omitempty"`
+	Repair             *repairAttempt          `json:"repair,omitempty"`
 }
 
 // Each PR owns cumulative allowances and all revision attempts. New commits do
@@ -66,6 +68,8 @@ type workflowJob struct {
 	JudgePolicy          string         `json:"judge_policy_sha256"`
 	Publication          string         `json:"publication,omitempty"`
 	AppID                int64          `json:"app_id,omitempty"`
+	RepairPolicy         string         `json:"repair_policy_sha256,omitempty"`
+	RepairNanos          int64          `json:"repair_active_ns,omitempty"`
 	ReviewNanos          int64          `json:"review_active_ns"`
 	EvaluationNanos      int64          `json:"evaluation_active_ns"`
 	ConsumptionUncertain bool           `json:"consumption_uncertain"`
@@ -90,8 +94,19 @@ func (c CLI) advanceWorkflow(ctx context.Context, store workflowStore, repo stri
 	if err := (intent.Policy{Humans: humans, Agents: []string{identity.BotLogin}}).Validate(); err != nil {
 		return nil, err
 	}
+	repairHash := ""
+	if c.Repair != nil {
+		if mode != "checks" || c.RepairGit == nil || !filepath.IsAbs(c.RepairRoot) {
+			return nil, fmt.Errorf("repair requires Checks publication, executor and absolute workspace root")
+		}
+		repairHash = c.Repair.digest
+	}
+	version := 1
+	if repairHash != "" {
+		version = 2
+	} // Older binaries must refuse repair-enabled jobs rather than discard their state.
 	key := workflowKey(repo, pr.Number)
-	job := &workflowJob{Version: 1, Repository: repo, PR: pr.Number, Bot: identity.BotLogin, Humans: humans, ReviewPolicy: hashBytes(reviewBytes), JudgePolicy: hashBytes(judgeBytes)}
+	job := &workflowJob{Version: version, Repository: repo, PR: pr.Number, Bot: identity.BotLogin, Humans: humans, ReviewPolicy: hashBytes(reviewBytes), JudgePolicy: hashBytes(judgeBytes)}
 	job.Publication, job.AppID = mode, identity.AppID
 	data, err := store.Review(ctx, key)
 	if err == nil {
@@ -108,11 +123,13 @@ func (c CLI) advanceWorkflow(ctx context.Context, store workflowStore, repo stri
 		if job.Publication != mode || (mode == "checks" && job.AppID != identity.AppID) {
 			return nil, fmt.Errorf("publication mode or App identity changed; resume legacy jobs with --publication comments; operator reconciliation required")
 		}
-		if job.Version != 1 || job.Repository != repo || job.PR != pr.Number || job.Bot != identity.BotLogin || job.ReviewPolicy != hashBytes(reviewBytes) || job.JudgePolicy != hashBytes(judgeBytes) || strings.Join(job.Humans, ",") != strings.Join(humans, ",") || job.ReviewNanos < 0 || job.EvaluationNanos < 0 {
+		if job.Version != version || job.Repository != repo || job.PR != pr.Number || job.Bot != identity.BotLogin || job.ReviewPolicy != hashBytes(reviewBytes) || job.JudgePolicy != hashBytes(judgeBytes) || strings.Join(job.Humans, ",") != strings.Join(humans, ",") || job.ReviewNanos < 0 || job.EvaluationNanos < 0 || job.RepairNanos < 0 || job.RepairPolicy != repairHash {
 			return nil, fmt.Errorf("workflow identity, policies, human allowlist, or accounting changed; operator reconciliation required")
 		}
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
+	} else {
+		job.RepairPolicy = repairHash
 	}
 	save := func() error {
 		data, err := json.Marshal(job)
@@ -128,7 +145,7 @@ func (c CLI) advanceWorkflow(ctx context.Context, store workflowStore, repo stri
 		run = job.Runs[len(job.Runs)-1]
 	}
 	for _, previous := range job.Runs {
-		for _, role := range []string{"review", "evaluation"} {
+		for _, role := range []string{"review", "evaluation", "repair"} {
 			effect := previous.Checks[role]
 			if effect == nil {
 				continue
@@ -143,6 +160,18 @@ func (c CLI) advanceWorkflow(ctx context.Context, store workflowStore, repo stri
 				}
 			} else if effect.Delivery != Draft || effect.Request.Validate() != nil {
 				return job, fmt.Errorf("invalid persisted check state")
+			}
+		}
+	}
+	// Finish/reconcile recorded candidate effects before treating its published
+	// commit as a new submission. Never hide an uncertain push by superseding it.
+	if run != nil {
+		for run.Phase == workflowCandidate || run.Phase == workflowPublishRepair || run.Phase == workflowRepairResult {
+			if err := c.advanceRepair(ctx, job, run, save); err != nil {
+				return job, err
+			}
+			if err := save(); err != nil {
+				return job, err
 			}
 		}
 	}
@@ -162,7 +191,7 @@ func (c CLI) advanceWorkflow(ctx context.Context, store workflowStore, repo stri
 	if run != nil && (run.Session.Report.PR.Head != pr.Head || run.Session.Report.PR.Base != pr.Base) {
 		// A prior in-flight operation must be reconciled before more work, even
 		// when the PR has advanced. Completed history remains available.
-		if run.Phase == workflowReviewRunning || run.Phase == workflowEvaluating {
+		if run.Phase == workflowReviewRunning || run.Phase == workflowEvaluating || run.Phase == workflowRepairRunning {
 			job.ConsumptionUncertain = true
 		}
 		if run.Phase != workflowDone {
@@ -188,6 +217,14 @@ func (c CLI) advanceWorkflow(ctx context.Context, store workflowStore, repo stri
 			return job, fmt.Errorf("prior model consumption is uncertain; no new dispatch")
 		}
 		run = &workflowRun{ID: hashBytes([]byte(key + pr.Head + pr.Base + job.ReviewPolicy + job.JudgePolicy)), Phase: workflowStart, Publications: map[string]*publication{}, Session: managedSession{Repository: repo, Humans: humans, Bot: job.Bot, Session: Session{Report: Report{PR: pr, Status: "incomplete", PolicySHA256: job.ReviewPolicy}}}}
+		// Carry authenticated intent only over our own exact repair commit. Other
+		// commits still require the broader reconciliation tracked in issue #7.
+		if len(job.Runs) > 0 {
+			previous := job.Runs[len(job.Runs)-1]
+			if previous.Repair != nil && previous.Repair.Delivery == Posted && previous.Repair.Candidate == pr.Head {
+				run.Session.Report.Proposals = previous.Repair.Session.Report.Proposals
+			}
+		}
 		job.Runs = append(job.Runs, run)
 		if err := save(); err != nil {
 			return job, err
@@ -203,6 +240,9 @@ func (c CLI) advanceWorkflow(ctx context.Context, store workflowStore, repo stri
 		switch run.Phase {
 		case workflowStart:
 			body := startingComment(pr, run.ID, reviewPolicy, judgePolicy, job.ReviewNanos, job.EvaluationNanos)
+			if c.Repair != nil {
+				body = strings.ReplaceAll(body, "Repairs: not implemented; this workflow does not create commits.", c.repairPlan(job))
+			}
 			body += fmt.Sprintf("\nTrusted policy SHA-256: reviewer `%s`; judge `%s`.\n", job.ReviewPolicy, job.JudgePolicy)
 			if err := c.publishMilestone(ctx, job, run, "starting", body, save); err != nil {
 				return job, err
@@ -278,6 +318,31 @@ func (c CLI) advanceWorkflow(ctx context.Context, store workflowStore, repo stri
 				return job, err
 			}
 			run.Phase = workflowEvaluate
+			if c.Repair != nil && (run.Session.Report.Status == "changes_required" || run.Session.Report.CheckFailure != "") {
+				if err := repairAdmission(job, run, *c.Repair, reviewPolicy, judgePolicy); err != nil {
+					if err := c.publishCheck(ctx, job, run, "repair", "completed", "action_required", "Repair not admitted", c.repairPlan(job)+"\n\n"+err.Error(), save); err != nil {
+						return job, err
+					}
+				} else {
+					id := hashBytes([]byte(run.ID + "/repair"))
+					report := run.Session.Report
+					report.PolicySHA256 = c.Repair.digest
+					report.Attempts, report.Checks, report.Usage = nil, nil, nil
+					report.ContextObservation = nil
+					run.Repair = &repairAttempt{ID: id, Workspace: filepath.Join(c.RepairRoot, id), CommitTime: c.Runner.Now(), Delivery: Draft, Session: managedSession{Repository: repo, Bot: job.Bot, Humans: humans, Session: Session{Report: report}}}
+					run.Phase = workflowRepair
+				}
+			}
+		case workflowRepair, workflowRepairRunning, workflowRepairWaiting, workflowCandidate, workflowPublishRepair, workflowRepairResult:
+			if err := c.advanceRepair(ctx, job, run, save); err != nil {
+				return job, err
+			}
+			if run.Phase == workflowRepairWaiting {
+				if err := save(); err != nil {
+					return job, err
+				}
+				return job, nil
+			}
 		case workflowEvaluating:
 			job.ConsumptionUncertain = true
 			if run.Evaluation == nil {

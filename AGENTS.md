@@ -94,4 +94,6 @@ publication; `service watch` posts its scorecard through the App. Grades never
 authorize merge, resource increases or more work. Preserve unknown usage and
 requested-vs-observed settings. Private judge/reviewer conversations stay local.
 The rubric is an automated assessment, not calibrated ground truth; parallel
-roll-ups, monetary reservations, repair and merge execution are not implemented.
+roll-ups, monetary reservations and merge execution are not implemented.
+
+The watcher can opt into bounded local repairs through --repair-policy (Checks mode only). Repair has its own model session, cumulative cycle/compute limits, persistent isolated worktree, mutable inspection tools, and tree-bound check evidence. Candidate creation and publication are separate effects. Verify the exact parent and checked tree, use a repository-scoped App contents-write token and an explicit expected-head lease, and reconcile uncertain pushes before any retry. Never hand publication credentials to tools. Carry authenticated intent to fresh review of the exact published candidate; general cross-revision intent reconciliation remains deferred. Protected policy/check controls cannot be edited by the repairer. No automatic merging, parallel waves or repair-Check rerun action. See docs/repairs.md.

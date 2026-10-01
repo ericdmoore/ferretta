@@ -16,7 +16,8 @@ import (
 )
 
 type Process struct {
-	Credentials func(context.Context, string) (string, error)
+	Credentials      func(context.Context, string) (string, error)
+	WriteCredentials func(context.Context, string) (string, error)
 }
 
 func (Process) Run(ctx context.Context, dir, name string, args ...string) ([]byte, error) {
@@ -40,6 +41,9 @@ type CLI struct {
 	PublicationMode string
 	Progress        io.Writer
 	Retry           *retryRequest
+	Repair          *RepairPolicy
+	RepairRoot      string
+	RepairGit       RepairGit
 }
 
 type GitHubConnection interface {
@@ -50,12 +54,17 @@ type GitHubConnection interface {
 
 func NewCLI(connection GitHubConnection) CLI {
 	process := Process{Credentials: connection.Token}
+	if writer, ok := connection.(interface {
+		ContentsToken(context.Context, string) (string, error)
+	}); ok {
+		process.WriteCredentials = writer.ContentsToken
+	}
 	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
 		return fmt.Errorf("local model redirects are not permitted")
 	}}
 	proposals, _ := connection.(ProposalGitHub)
 	checks, _ := connection.(github.Checks)
-	return CLI{Proposals: proposals, Checks: checks, Runner: Runner{Exec: process, Searcher: process, GitHub: connection, Fetch: process.Fetch, Model: Ollama{HTTP: client}, Now: time.Now}, Setup: Setup{HTTP: client, Exec: process, Auth: connection.Status}}
+	return CLI{RepairGit: process, Proposals: proposals, Checks: checks, Runner: Runner{Exec: process, Searcher: process, GitHub: connection, Fetch: process.Fetch, Model: Ollama{HTTP: client}, Now: time.Now}, Setup: Setup{HTTP: client, Exec: process, Auth: connection.Status}}
 }
 
 func (c CLI) Run(ctx context.Context, args []string, output, stderr io.Writer) int {

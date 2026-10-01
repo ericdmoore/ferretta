@@ -165,15 +165,16 @@ func (a *App) scopedToken(ctx context.Context, repo, permission, access string) 
 	if _, err := a.installation(ctx, repo, jwt); err != nil {
 		return "", err
 	}
+	permissions := map[string]string{"contents": "read", permission: access}
 	body, _ := json.Marshal(struct {
 		Repositories []string          `json:"repositories"`
 		Permissions  map[string]string `json:"permissions"`
-	}{[]string{strings.Split(repo, "/")[1]}, map[string]string{"contents": "read", permission: access}})
+	}{[]string{strings.Split(repo, "/")[1]}, permissions})
 	var token installationToken
 	if err := a.request(ctx, "POST", fmt.Sprintf("/app/installations/%d/access_tokens", a.installationID), jwt, body, &token); err != nil {
 		return "", err
 	}
-	if strings.TrimSpace(token.Token) == "" || strings.ContainsAny(token.Token, "\r\n") || !token.ExpiresAt.After(a.now().Add(time.Minute)) || token.Permissions["contents"] != "read" || token.Permissions[permission] != access {
+	if strings.TrimSpace(token.Token) == "" || strings.ContainsAny(token.Token, "\r\n") || !token.ExpiresAt.After(a.now().Add(time.Minute)) || token.Permissions["contents"] != permissions["contents"] || token.Permissions[permission] != access {
 		return "", fmt.Errorf("invalid installation token or missing requested permissions")
 	}
 	for name, level := range token.Permissions {
@@ -226,4 +227,10 @@ func (a *App) PullRequest(ctx context.Context, repo string, pr int) (PullRequest
 
 func (a *App) OpenPullRequests(ctx context.Context, repo string) ([]PullRequest, error) {
 	return a.client(repo).OpenPullRequests(ctx, repo)
+}
+
+// ContentsToken grants only repository contents write for the publication executor.
+// It is never shared with model tools, review fetches or comment/check adapters.
+func (a *App) ContentsToken(ctx context.Context, repo string) (string, error) {
+	return a.scopedToken(ctx, repo, "contents", "write")
 }

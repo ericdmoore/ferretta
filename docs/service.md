@@ -135,5 +135,5 @@ successful authenticated PR intake must be validated separately.
 
 The scoped watcher implements a serial durable workflow and reconciled milestone
 publication. General DAG scheduling, parallel waves, monetary reservations,
-resource-grant parsing and automated repair/merge remain future work. The manual
+resource-grant parsing and automated merging remain future work. Optional [bounded repair](repairs.md) supports one local worker and guarded publication. The manual
 `review` command remains separate and does not consume the intake queue.

@@ -24,7 +24,7 @@ its terminal review, and polls authenticated intent replies.
 The manual Ollama reviewer has commit-bound tools, checks, private checkpoints,
 and opt-in GitHub App proposal publication. Manual resume polls authenticated
 human replies once. The prototype adds a read-only scorecard judge and automatic
-verdict publication; repair and merge executors remain absent. See [service](service.md),
+verdict publication; [bounded repair](repairs.md) is now opt-in, while merge execution remains absent. See [service](service.md),
 [proposal sessions](proposals.md), and [configuration](configuration.md).
 
 Build on those adapters and state boundaries. The first runtime is one local
@@ -329,7 +329,7 @@ correctness. Compare total outcome quality, compute, money, and human interventi
 
 ## Deferred work and remaining choices
 
-Automatic repair/push/merge, real parallel waves, multi-installation coordination,
+Automatic merging, real parallel waves, multi-installation coordination,
 OpenRouter/subscription adapters, the layered TOML resolver, automated sampling,
 and comprehensive feedback collection are outside the first acceptance run.
 Preserve their interfaces and current status rather than claiming them implemented.

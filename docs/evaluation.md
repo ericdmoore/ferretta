@@ -4,7 +4,7 @@
 It discovers the PR through the GitHub App, creates review and evaluation Checks,
 reviews its exact commits, publishes the verdict, and runs a separate read-only
 judge session that publishes a scorecard. It polls authenticated human replies when a
-review pauses for an intent question. It does not repair or merge.
+review pauses for an intent question. An optional [repair policy](repairs.md) enables a separate bounded repair stage. It does not merge.
 
 `service run` remains intake only. Neither command upgrades itself into the other.
 The [implementation plan](review-evaluation.md) records the broader design and
@@ -107,7 +107,7 @@ policy hashes, active allowances, and a plain-language plan. Review and evaluati
 allowances are separate and cumulative across revisions of the PR. Zero disables
 the corresponding limit. Active-stage accounting includes setup overhead and
 excludes time awaiting a human; model/tool worker durations are also recorded.
-There is no PR-age deadline, repair cycle, paid routing, or monetary meter yet.
+There is no PR-age deadline, paid routing, or monetary meter yet. Optional repairs have their own cumulative cycle and compute allowances.
 Unknown token usage and unmeasured local electricity/hardware costs are explicit.
 
 The reviewer can run only trusted configured checks. These execute PR code as the
@@ -132,10 +132,7 @@ Two entries appear in the PR's Checks section:
 | `Ferretta / review` | Starts in progress; an accepted LGTM completes with success, changes required with failure, and incomplete review with action required |
 | `Ferretta / evaluation` | Queues behind review, then runs independently; a completed assessment is neutral, while an incomplete assessment needs attention and preserves the review verdict |
 
-Repairs are a planned **separate stage** that would create commits, followed by
-review of the resulting revision. They are not embedded in today's review, and
-there is no repair Check yet. The starting plan explicitly says repairs are not
-implemented; findings must currently be addressed by a human or implementation agent.
+Repairs are an optional **separate stage**, with a `Ferretta / repair` Check. They produce candidate commits, publish with an expected-head guard, and require a fresh review of the new revision. See [bounded repairs](repairs.md) for policy, tools, allowances, and recovery.
 
 The details show the assigned models, requested settings, allowances, plan, exact
 commits, and policy hashes. Recent activity is updated at saved model/tool
@@ -168,7 +165,7 @@ operator reconciliation; they are never blindly recreated or patched again.
 Superseded unfinished revisions receive cancelled Checks on their original SHA.
 
 Line annotations, a self-hosted Actions adapter, and a live log server remain
-future work. Checks do not enable repair, merge, extra allowances, or branch protection. Keep evaluation informational while
+future work. Checks alone do not enable repair, merge, extra allowances, or branch protection; repair requires its own explicit policy. Keep evaluation informational while
 grading is calibrated. Existing build/test CI remains separate from model review.
 
 ## Retry a Check
@@ -297,6 +294,6 @@ If evaluation fails, publish an explicit incomplete scorecard and preserve the
 review verdict. A local provider HTTP 500 was observed during development; a
 separate explicit evaluation attempt succeeded. Completion does not validate the
 grades. Automatic retries, general DAG/parallel scheduling, multi-worker roll-ups,
-monetary reservations, constraint grants, and repair/merge execution remain future
+monetary reservations, constraint grants, and merge execution remain future
 work. Boot templates still start intake only; installing this prototype does not
 silently enable model execution at boot.

@@ -110,6 +110,7 @@ GitHub App identity under their existing authorization rules.
   [operating guide](evaluation.md) for allowances and recovery. Replace `--pr N`
   with `--all-prs --authors login[,login]` for continuous discovery of ready PRs
   from allowed authors on same-repository branches.
+- Optional repair: `service watch --repair-policy PATH` enables a bounded local worker and controlled pushes. See [repair policy and operation](repairs.md); omission preserves review-only behavior.
 - Watch publication: `--publication checks` (default) or `comments`, pinned for
   the PR workflow. Checks mode retains intent proposal comments and reports
   routine progress/verdict/scorecard through the App's Checks API. Legacy jobs

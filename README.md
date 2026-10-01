@@ -29,6 +29,7 @@ amd64/arm64 with CGO disabled.
 | Setup | `init` discovers local model metadata and creates an Ollama policy; `doctor` checks readiness. Downloads and inference are explicit, separate actions. |
 | Intent inspection | Parses and inspects existing proposal/correction/confirmation comments. Proposal sessions retain authenticated human correction/confirmation evidence. |
 | Background service | Intake-only polling, or explicit `service watch` for a selected PR or allowlisted repository PRs with review/evaluation Checks, checkpoint progress, and intent-question comments. |
+| Bounded repairs | Opt-in local repair worker, isolated worktree, candidate commits, guarded App-authenticated push, and fresh review of the resulting revision. [Operating guide](docs/repairs.md). |
 | Automated scorecard | A separate read-only judge grades worker output and the oversight decision; records evidence and model/tool usage. |
 | Check retries | Explicit CLI retries or signed GitHub Check re-run webhooks create durable attempts while retaining history and cumulative compute allowances. Evaluation-only retries preserve the review. |
 
@@ -36,11 +37,10 @@ Reviews can produce findings, an intent question, an advisory LGTM, or an
 incomplete result when checks, context, or resource limits prevent completion.
 Reports and private session checkpoints are saved locally. Opt-in [proposal
 sessions](docs/proposals.md) post questions through the GitHub App and resume
-through explicit polling or a scoped watcher after human replies. Ferretta does not yet push repairs
-or merge PRs.
+through explicit polling or a scoped watcher after human replies. The watcher can opt into [bounded repairs](docs/repairs.md); automatic merging remains unimplemented.
 
 The next stages are policy-selected model waves and fallbacks, fuller resource accounting,
-OpenRouter inference, and gated repairs/merging. The agreed configuration layers
+OpenRouter inference, and gated merging. The agreed configuration layers
 and cost/time/quality objectives are described in [configuration decisions](docs/configuration.md)
 and [architecture](arch.md); the layered TOML resolver is not implemented.
 
@@ -389,7 +389,7 @@ Intent review can begin while CI runs. An optional policy can wait for inexpensi
 
 ### Later integration and merge handling
 
-The initial workflow produces a review result. Automated repair, integration validation, and merging are possible later extensions, not prerequisites for this review service. If merge execution is added, eligibility additionally requires:
+The default workflow produces a review result. Opt-in bounded repair appends checked candidates and triggers fresh review; parallel integration validation and merging remain later extensions. If merge execution is added, eligibility additionally requires:
 
 - Completed reviews satisfying the configured independence policy.
 - No unresolved blocking findings or required coverage gaps.

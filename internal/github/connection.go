@@ -139,3 +139,11 @@ func appFromConfig(config AppConfig, client Doer, now func() time.Time) (*App, e
 	}
 	return NewApp(config.ClientID, config.InstallationID, pem, client, now)
 }
+
+func (c *Connection) ContentsToken(ctx context.Context, repo string) (string, error) {
+	a, err := c.get()
+	if err != nil {
+		return "", err
+	}
+	return a.ContentsToken(ctx, repo)
+}

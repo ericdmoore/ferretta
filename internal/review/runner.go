@@ -25,6 +25,7 @@ type PullRequests interface {
 type Workspace struct {
 	path, mergeBase string
 	pr              PR
+	repair          *repairWorkspace
 }
 type Runner struct {
 	GitHub   PullRequests
@@ -111,6 +112,9 @@ func (r Runner) Prepare(ctx context.Context, repo string, pr PR, workspace strin
 }
 
 func (r Runner) read(ctx context.Context, w Workspace, path string) ([]byte, error) {
+	if w.repair != nil {
+		return repairRead(w.path, path)
+	}
 	return r.Exec.Run(ctx, w.path, "git", "show", w.pr.Head+":"+path)
 }
 
@@ -167,6 +171,12 @@ func (r Runner) continueReview(ctx context.Context, p Policy, w Workspace, sessi
 		return finish(err.Error())
 	}
 	checks := CheckEvidence{outputs: report.Checks, failure: report.CheckFailure}
+	if w.repair != nil {
+		p.toolSchema = repairTools()
+		// A resumed workspace must re-establish checks; files may have changed while waiting.
+		checks = CheckEvidence{}
+		report.Checks, report.CheckFailure = nil, ""
+	}
 	for turn := len(report.Attempts); p.config.MaxTurns == 0 || turn < p.config.MaxTurns; turn++ {
 		if err := ctx.Err(); err != nil {
 			return finish(err.Error())
@@ -177,7 +187,11 @@ func (r Runner) continueReview(ctx context.Context, p Policy, w Workspace, sessi
 		}
 		usageIndex := len(report.Usage)
 		started := r.Now()
-		report.Usage = append(report.Usage, UsageEvent{ID: fmt.Sprintf("model/%d", turn+1), Kind: "model", Operation: "review", Outcome: "pending"})
+		operation := "review"
+		if w.repair != nil {
+			operation = "repair"
+		}
+		report.Usage = append(report.Usage, UsageEvent{ID: fmt.Sprintf("model/%d", turn+1), Kind: "model", Operation: operation, Outcome: "pending"})
 		if err := checkpoint(report, messages); err != nil {
 			return finish("persist review before model dispatch: " + err.Error())
 		}
@@ -195,7 +209,7 @@ func (r Runner) continueReview(ctx context.Context, p Policy, w Workspace, sessi
 			return finish(err.Error())
 		}
 		if reply.PromptTokens > 0 {
-			report.ContextObservation = &ContextObservation{MessageCount: len(messages), PromptTokens: reply.PromptTokens, ToolSchema: fmt.Sprintf("%x", sha256.Sum256(tools))}
+			report.ContextObservation = &ContextObservation{MessageCount: len(messages), PromptTokens: reply.PromptTokens, ToolSchema: fmt.Sprintf("%x", sha256.Sum256(p.tools()))}
 		}
 		report.Attempts = append(report.Attempts, reply)
 		messages = append(messages, reply.Message)
@@ -203,18 +217,83 @@ func (r Runner) continueReview(ctx context.Context, p Policy, w Workspace, sessi
 			return finish("persist review: " + err.Error())
 		}
 		if len(reply.Message.ToolCalls) == 0 {
+			if w.repair != nil {
+				messages = append(messages, Message{Role: "user", Content: "Continue repairing with tools. Use run_tests after edits and finish_repair with a summary when ready. Use request_intent_confirmation for consequential ambiguity."})
+				continue
+			}
 			messages = append(messages, Message{Role: "user", Content: "A prose answer does not complete the review. If your review is complete, call finish_review yourself with verdict, summary, tradeoffs, findings, and question. Use verdict lgtm only when evidence supports approval and required checks passed; findings must be [] and question must be an empty string. Use verdict changes_required for demonstrated bugs, with findings containing path, line, and explanation, and question an empty string. If evidence is still needed, continue inspecting with the tools. Use request_intent_confirmation only for an unresolved question about intended software behavior or a consequential tradeoff, never to ask the human to select or approve your verdict."})
 			continue
 		}
 		for _, call := range reply.Message.ToolCalls {
 			toolStarted := r.Now()
 			command, err := Plan(call.Function.Name, call.Function.Arguments)
+			if w.repair != nil {
+				command, err = planRepair(call.Function.Name, call.Function.Arguments, w.repair.policy)
+			}
 			result := ""
 			if err != nil {
 				result = toolFailure("invalid_arguments", call.Function.Name, call.Function.Arguments, err)
 			} else {
 				switch c := command.(type) {
+				case ApplyPatch:
+					checks = CheckEvidence{}
+					report.Checks, report.CheckFailure = nil, ""
+					w.repair.checkedTree = ""
+					if err := repairPatch(w.path, c); err != nil {
+						result = err.Error()
+					} else {
+						result = "Patch applied. Earlier checks are stale; run_tests after all edits."
+					}
+				case RunFormatter:
+					checks = CheckEvidence{}
+					report.Checks, report.CheckFailure = nil, ""
+					w.repair.checkedTree = ""
+					args := w.repair.policy.formatter
+					data, err := r.Exec.Run(ctx, w.path, args[0], args[1:]...)
+					result = string(data)
+					if err != nil {
+						result += "\n" + err.Error()
+					}
+				case FinishRepair:
+					if len(reply.Message.ToolCalls) != 1 {
+						result = "Call finish_repair alone."
+						break
+					}
+					if len(report.Proposals) > 0 {
+						last := report.Proposals[len(report.Proposals)-1]
+						if last.Decision == nil || last.Decision.Marker.Vocabulary != "CONFIRMED" {
+							result = "Resolve intent and revise corrected proposals before finishing."
+							break
+						}
+					}
+					tree, err := r.repairTree(ctx, w)
+					if err != nil {
+						result = err.Error()
+						break
+					}
+					if tree != w.repair.checkedTree || len(checks.outputs) == 0 || checks.failure != "" {
+						result = "Checks must pass on the exact repaired tree; run_tests again."
+						break
+					}
+					original, err := r.Exec.Run(ctx, w.path, "git", "rev-parse", w.pr.Head+"^{tree}")
+					if err != nil {
+						return finish(err.Error())
+					}
+					if strings.TrimSpace(string(original)) == tree {
+						result = "No repair changes to submit."
+						break
+					}
+					report.Status, report.Summary, report.FinishedAt = "repaired", c.summary, r.Now()
+					return report
 				case Search:
+					if w.repair != nil {
+						var err error
+						result, err = r.repairSearch(ctx, w, c)
+						if err != nil {
+							result = err.Error()
+						}
+						break
+					}
 					var page SearchPage
 					var err error
 					if r.Searcher == nil {
@@ -248,7 +327,15 @@ func (r Runner) continueReview(ctx context.Context, p Policy, w Workspace, sessi
 					}
 					return report
 				case ReadDiff:
-					data, err := r.Exec.Run(ctx, w.path, "git", "diff", "--no-ext-diff", "--no-color", w.mergeBase, w.pr.Head, "--")
+					args := []string{"diff", "--no-ext-diff", "--no-color", w.mergeBase, w.pr.Head, "--"}
+					if w.repair != nil {
+						if _, err := r.repairTree(ctx, w); err != nil {
+							result = err.Error()
+							break
+						}
+						args = []string{"diff", "--cached", "--no-ext-diff", "--no-color", w.mergeBase, "--"}
+					}
+					data, err := r.Exec.Run(ctx, w.path, "git", args...)
 					if err != nil {
 						result = toolFailure("execution_failed", call.Function.Name, call.Function.Arguments, err)
 					} else {
@@ -262,6 +349,14 @@ func (r Runner) continueReview(ctx context.Context, p Policy, w Workspace, sessi
 						result = linePage(data, c.start, c.end)
 					}
 				case ListFiles:
+					if w.repair != nil {
+						files, err := r.repairFiles(ctx, w)
+						result = strings.Join(files, "\n")
+						if err != nil {
+							result = err.Error()
+						}
+						break
+					}
 					data, err := r.Exec.Run(ctx, w.path, "git", "ls-tree", "-r", "--name-only", w.pr.Head)
 					if err != nil {
 						result = toolFailure("execution_failed", call.Function.Name, call.Function.Arguments, err)
@@ -269,6 +364,18 @@ func (r Runner) continueReview(ctx context.Context, p Policy, w Workspace, sessi
 						result = string(data)
 					}
 				case RunChecks:
+					beforeTree := ""
+					if w.repair != nil {
+						checks = CheckEvidence{}
+						report.Checks, report.CheckFailure = nil, ""
+						w.repair.checkedTree = ""
+						var err error
+						beforeTree, err = r.repairTree(ctx, w)
+						if err != nil {
+							result = err.Error()
+							break
+						}
+					}
 					if len(checks.outputs) == 0 {
 						for _, args := range p.config.Checks {
 							data, err := r.Exec.Run(ctx, w.path, args[0], args[1:]...)
@@ -277,6 +384,16 @@ func (r Runner) continueReview(ctx context.Context, p Policy, w Workspace, sessi
 								checks.failure = err.Error()
 								break
 							}
+						}
+					}
+					if w.repair != nil && checks.failure == "" {
+						afterTree, err := r.repairTree(ctx, w)
+						if err != nil {
+							checks.failure = err.Error()
+						} else if beforeTree != afterTree {
+							checks.failure = "Checks changed the tree; rerun on final files."
+						} else {
+							w.repair.checkedTree = afterTree
 						}
 					}
 					report.Checks = checks.outputs

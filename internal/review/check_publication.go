@@ -158,7 +158,7 @@ func progressText(events []UsageEvent) string {
 	for _, event := range events[start:] {
 		operation := event.Operation
 		switch operation {
-		case "review", "judge", "read_file", "read_diff", "list_files", "search", "grep", "run_checks", "read_evidence", "finish_review", "finish_evaluation", "request_intent_confirmation":
+		case "repair", "apply_patch", "run_tests", "run_formatter", "finish_repair", "review", "judge", "read_file", "read_diff", "list_files", "search", "grep", "run_checks", "read_evidence", "finish_review", "finish_evaluation", "request_intent_confirmation":
 		default:
 			operation = "unrecognized tool"
 		}
@@ -224,8 +224,12 @@ func (c CLI) publishMilestone(ctx context.Context, job *workflowJob, run *workfl
 			conclusion, title = "action_required", "Evaluation incomplete; review verdict preserved"
 		}
 		return c.publishCheck(ctx, job, run, "evaluation", "completed", conclusion, title, body, save)
-	default: // Superseded revision: both old checks become terminal.
-		for _, role := range []string{"review", "evaluation"} {
+	default: // Superseded revision: old checks become terminal.
+		roles := []string{"review", "evaluation"}
+		if run.Repair != nil {
+			roles = append(roles, "repair")
+		}
+		for _, role := range roles {
 			if role == "review" && run.ReviewSource != "" {
 				continue // Evaluation retries never mutate the source review Check.
 			}
