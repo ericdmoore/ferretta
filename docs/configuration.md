@@ -36,6 +36,11 @@ They are design examples, not configuration accepted by the current CLI.
 The separate [workflow syntax comparison](workflow-syntax.md) records both
 dependency stages and ordered waves without selecting either format.
 
+The [scorecard prototype](evaluation.md) accepts separate reviewer and judge JSON
+policy files with independent allowances. Its role rubric is versioned in code.
+The [broader plan](review-evaluation.md) includes future configurable rubrics and
+publication settings; it does not settle the TOML schema.
+
 | Preset | Primary optimization | Unchanged requirements |
 | --- | --- | --- |
 | `cost` (default) | Minimize additional spending | Capabilities, authorized routes, hard limits and acceptance gates |
@@ -98,6 +103,11 @@ GitHub App identity under their existing authorization rules.
   reports. `model test` explicitly runs two bounded inference turns.
 - Manual review: explicit trusted `.ferretta/review.json`, selected with
   `review --policy`. The current adapter is Ollama only.
+- Evaluation: `eval --run PATH --policy PATH`, or `review --eval-policy PATH`.
+  The judge accepts Ollama route/limit fields but rejects executable checks.
+- Scoped dispatch: `service watch --repo owner/repo --pr N --state PATH
+  --review-policy PATH --judge-policy PATH --humans login`. See the
+  [operating guide](evaluation.md) for allowances and recovery.
 - Service intake: `service run --repo owner/repo` (repeatable), `--state` (absolute
   private directory), `--interval` (default `1m`, range `5s`–`24h`), and `--once`.
   Default state is `ferretta/state` beneath `os.UserConfigDir()`; boot service
@@ -119,7 +129,7 @@ It does not yet save layered user defaults or TOML. Existing files are preserved
 | Field | Meaning |
 | --- | --- |
 | `provider`, `endpoint`, `model` | Explicit `ollama` route at an HTTP loopback endpoint and installed model ID |
-| `thinking` or `effort` | Exactly one: `thinking: "enabled"` for boolean controls, or `effort: "low"`, `"medium"`, `"high"` for named controls |
+| `thinking` or `effort` | Exactly one: `thinking: "enabled"` for a verified boolean control, `thinking: "provider_default"` to explicitly accept the model's default, or `effort: "low"`, `"medium"`, `"high"` for verified named controls |
 | `context_tokens` | At least 8,192, bounded by provider-reported model capacity; setup defaults to 16,384; omitted legacy field remains 65,536 |
 | `max_turns` | Nonnegative; 0 disables the turn ceiling; setup uses 100; counts model responses across resumed segments |
 | `max_tokens_per_turn` | At least 256; setup uses 4,096; must leave at least 2,048 tokens of input room in context |
@@ -127,11 +137,51 @@ It does not yet save layered user defaults or TOML. Existing files are preserved
 | `checks` | Nonempty list of command argument arrays; trusted operator-selected commands |
 
 Unknown fields, contradictory thinking controls and invalid limits are rejected.
-Metadata must establish tools, thinking, requested control support and sufficient
-context capacity. Older Ollama versions lacking control metadata have explicit
-compatibility for GPT-OSS named effort and Qwen3 boolean thinking; other unknown
-controls are rejected. Remote-model metadata is rejected by the local-only route.
+Metadata must establish tools, thinking capability and sufficient context capacity.
+Explicitly enabled thinking and named effort also require support for the requested
+control. Older Ollama versions lacking control metadata have explicit compatibility
+for GPT-OSS named effort and Qwen3 boolean thinking; other unknown controls are
+rejected. Remote-model metadata is rejected by the local-only route.
 Requested settings remain separate from provider-reported execution details.
+
+### Models with missing thinking-control metadata
+
+Some installed models advertise tools and thinking but omit the separate
+`thinking.values` controls. Alpaca's `qwen3.8:27b-mlx` is one such model. Select
+`thinking: "provider_default"` to explicitly accept the provider's default instead
+of requesting an unverified control. Ferretta sends `think: null`, following
+[Ollama's API semantics](https://docs.ollama.com/capabilities/thinking).
+Whether thinking is enabled, and its effective effort, remain unknown. This is
+different from `thinking: "enabled"`; a model default may change when the provider
+or model changes. Policies that require enabled thinking should keep that setting
+and require suitable metadata or an established adapter compatibility rule.
+
+The default option does not supply missing tool/thinking capabilities, invent a
+context limit, permit a remote route, or override explicit non-thinking control
+metadata such as `values: [false]`. `init --thinking auto` never silently selects
+it. An explicit choice is required; review and judge policies both support it.
+
+For an already installed Qwen model, create a separate policy:
+
+```sh
+bin/ferretta init --yes --model qwen3.8:27b-mlx \
+  --thinking provider_default --context 131072 \
+  --max-turns 0 --max-output-tokens 16384 --timeout 600 \
+  --check '["make","check"]' --policy .ferretta/qwen27-review.json
+bin/ferretta doctor --repo owner/repo --policy .ferretta/qwen27-review.json
+bin/ferretta model test --policy .ferretta/qwen27-review.json
+```
+
+The model name is a local installation choice, not a portable download promise.
+Setup preserves existing files and performs metadata checks only. The last command
+explicitly runs two inference turns with inert tool results. Success establishes
+tool continuation, not reasoning effort, review quality, or memory requirements
+for every workload. This example has unlimited turns within a ten-minute active
+deadline; context and output allowances remain enforced. Model weights and context
+both consume memory, so select context capacity for the intended workload.
+
+### Context accounting
+
 The context admission check uses Ollama-reported prompt tokens for the unchanged
 message prefix when available, plus encoded bytes for newly appended messages,
 a framing reserve and output allowance. Before a usage observation, the complete

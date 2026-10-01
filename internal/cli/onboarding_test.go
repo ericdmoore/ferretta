@@ -13,6 +13,26 @@ import (
 
 type onboardingStub struct{ called string }
 
+func (s *onboardingStub) Eval(context.Context, []string, io.Writer, io.Writer) int {
+	s.called = "eval"
+	return 0
+}
+
+func (s *onboardingStub) Watch(context.Context, []string, io.Writer, io.Writer) int {
+	s.called = "watch"
+	return 0
+}
+
+func TestWorkflowDispatch(t *testing.T) {
+	s := &onboardingStub{}
+	if RunWithReviewer(context.Background(), []string{"service", "watch"}, nil, io.Discard, io.Discard, nil, s) != 0 || s.called != "watch" {
+		t.Fatal("watch not routed")
+	}
+	if Run(context.Background(), []string{"service", "watch"}, nil, io.Discard, io.Discard, nil) != 1 {
+		t.Fatal("missing adapter")
+	}
+}
+
 func (s *onboardingStub) Run(context.Context, []string, io.Writer, io.Writer) int {
 	s.called = "review"
 	return 0
@@ -35,7 +55,7 @@ func (s *onboardingStub) Probe(context.Context, []string, io.Writer, io.Writer) 
 }
 
 func TestOnboardingDispatch(t *testing.T) {
-	for _, args := range [][]string{{"init"}, {"doctor"}, {"demo"}, {"model", "test"}} {
+	for _, args := range [][]string{{"eval"}, {"init"}, {"doctor"}, {"demo"}, {"model", "test"}} {
 		s := &onboardingStub{}
 		if RunWithReviewer(context.Background(), args, nil, io.Discard, io.Discard, nil, s) != 0 || s.called != args[0] {
 			t.Fatal(args, s.called)

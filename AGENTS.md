@@ -15,7 +15,7 @@ Markdown-only changes do not require a pull request. Changes that also modify co
 - LGTM is a valid outcome when the evidence supports intent alignment, correctness, and an appropriately small, well-designed implementation. Explain major tradeoffs; do not manufacture findings or chase fewer lines at the expense of required behavior or clarity. Model approval cannot override incomplete required checks, blocking questions/findings, or a stale revision.
 - Ferretta's reviewer may ask for clarification with PROPOSED comments on the PR. Human replies notify and resume the saved review job; corrections lead to a revised proposal, and confirmations establish intent for review.
 - Keep the notification adapter separate from core policy. Repeated delivery must not duplicate model spending or posted questions.
-- `service run` currently performs intake only: GitHub App polling and SQLite revision observations with one local owner. It does not dispatch reviews, parse replies, run checks or write to GitHub. `service status` reads persisted observations, not process liveness. Preserve this boundary in documentation.
+- `service run` currently performs intake only: GitHub App polling and SQLite revision observations with one local owner. It does not dispatch reviews, parse replies, run checks or write to GitHub. `service status` reads persisted observations, not process liveness. The separate explicit `service watch` dispatches one PR with trusted review/judge policies, publishes starting/verdict/scorecard comments and polls authenticated intent replies. Preserve the command distinction.
 - SQLite intake uses modernc.org/sqlite with CGO disabled. A local OS lock protects one state directory; independent directories/installations do not coordinate. Keep the database private and reject unknown schema versions.
 - The primary runtime is a boot service with service-owned configuration and credentials, independent of desktop login. See arch.md and docs/configuration.md for agreed configuration layers and objective presets; their TOML resolver and CLI selectors are not implemented.
 
@@ -52,7 +52,7 @@ Run `FERRETTA_TEST_REPO=owner/repo FERRETTA_TEST_PR=number make test-network-app
 after provisioning app credentials; it verifies identity and reads an existing PR
 with comments. It never posts comments or generates model responses.
 
-The intent CLI inspects existing comments and emits a current snapshot, not a durable confirmation log or merge authorization. The manual `review` command runs a bounded local Ollama tool loop in a detached worktree, executes trusted policy checks, and saves an advisory report plus private session checkpoints. With --publish-proposals and an explicit human allowlist, it posts PROPOSED comments and saves private SQLite checkpoints. --resume polls once for authenticated CORRECTED/CONFIRMED replies and resumes the same revision/policy. General interrupted-model replay and automatic notification intake remain unimplemented. Store locks serialize all proposal runs under the same runs directory; independent directories/installations do not coordinate. Never repost uncertain effects without reconciliation.
+The intent CLI inspects existing comments and emits a current snapshot, not a durable confirmation log or merge authorization. The manual `review` command runs a bounded local Ollama tool loop in a detached worktree, executes trusted policy checks, and saves an advisory report plus private session checkpoints. With --publish-proposals and an explicit human allowlist, it posts PROPOSED comments and saves private SQLite checkpoints. --resume polls once for authenticated CORRECTED/CONFIRMED replies and resumes the same revision/policy. General interrupted-model replay remains unimplemented. `service watch` polls intent replies automatically; uncertain execution stops rather than replaying model spending. Store locks serialize all proposal runs under the same runs directory; independent directories/installations do not coordinate. Never repost uncertain effects without reconciliation.
 
 CI uploads build artifacts. Version-tag workflows stage archives and checksums in draft GitHub releases; publication and release-test cadence remain separate decisions. Do not upload private `.ferretta/runs/` session data as build or release artifacts.
 
@@ -72,6 +72,12 @@ Use `compatible` for `/v1/models`. The separate inference suite requires an
 explicit absolute `FERRETTA_TEST_MODEL_POLICY` and `make test-network-model-tools`.
 Normal tests never invoke either live suite.
 
+`thinking: "provider_default"` is an explicit policy choice that sends Ollama
+`think:null`. Missing thinking-control metadata may be accepted only in this mode;
+tools/thinking capability, local routing and context checks remain mandatory.
+Enabled state and effective effort remain unknown. Never silently downgrade an
+`enabled`/named-effort policy or let `init --thinking auto` select this mode.
+
 The Hugo site lives in site/. Run make tools-site once to install the pinned
 compiler, then make site-check for template/link/installer validation. The Pages
 workflow uses the same commands and deploys only main. Keep install.sh as the
@@ -80,3 +86,10 @@ fixtures in internal/installtest use fake downloads and commands. All optional
 components require explicit selection; do not collect unused OpenRouter keys or
 claim LiteLLM/OpenRouter inference is implemented. Public installation requires
 a published release and HTTPS; drafting assets does not publish them.
+
+Evaluation uses a separate read-only session. `eval` grades saved reports without
+publication; `service watch` posts its scorecard through the App. Grades never
+authorize merge, resource increases or more work. Preserve unknown usage and
+requested-vs-observed settings. Private judge/reviewer conversations stay local.
+The rubric is an automated assessment, not calibrated ground truth; parallel
+roll-ups, monetary reservations, repair and merge execution are not implemented.

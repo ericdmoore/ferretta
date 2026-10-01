@@ -1,6 +1,6 @@
 # Running Ferretta as a service
 
-This first service slice **polls and durably records PR revisions only**. It does
+`service run` **polls and durably records PR revisions only**. It does
 not call a model, run PR code, post comments, repair, or merge. A candidate in
 the intake queue is not review admission or approval. Register and provision the
 [GitHub App](github-app-auth.md) before enabling polling.
@@ -45,6 +45,15 @@ must be mode 0700, database mode 0600. WAL files are private within that directo
 Never delete `owner.lock` while an owner runs; the kernel releases its lock on exit.
 Back up the database using a consistent SQLite backup or with the service stopped,
 including any remaining WAL; copying a live database file alone is insufficient.
+
+## Scoped automatic review
+
+The separate [`service watch` command](evaluation.md) opts into one PR, trusted
+review/judge policies and a human allowlist. It publishes starting, verdict and
+scorecard comments, and polls intent replies. It reuses this store and ownership
+lock; run one owner per installation. Supplied boot templates still select intake
+only. Watch requires a matching repository checkout and permits trusted checks
+to execute PR code as the OS user; it is not an execution sandbox.
 
 ## Boot installation
 
@@ -110,11 +119,9 @@ model responses generated, or PR code executed during these installation tests.
 Missing App configuration was the expected polling failure. Service health and
 successful authenticated PR intake must be validated separately.
 
-## Next execution slice
+## Remaining orchestration work
 
-Bind an observation to trusted policy and an immutable DAG node; reserve resources
-transactionally; dispatch model/tools through an isolated executor; persist
-results/uncertain effects; resume only after reconciliation. Comment intake,
-confirmed intent, dynamic CLI control, parallel waves and automated integration
-build on that boundary. The existing manual `review` remains separate and does
-not consume this intake queue.
+The scoped watcher implements a serial durable workflow and reconciled milestone
+publication. General DAG scheduling, parallel waves, monetary reservations,
+resource-grant parsing and automated repair/merge remain future work. The manual
+`review` command remains separate and does not consume the intake queue.

@@ -72,6 +72,9 @@ func (c CLI) Doctor(ctx context.Context, args []string, output, stderr io.Writer
 				issue("Model", err.Error(), "ferretta init --discover; inspect the selected endpoint/model and policy.")
 			} else {
 				fmt.Fprintln(&report, "Model: local tools/thinking metadata and context capacity verified; inference not tested")
+				if p.config.Thinking == "provider_default" {
+					fmt.Fprintln(&report, "Thinking: provider default requested; enabled state and effective effort unknown.")
+				}
 			}
 			fmt.Fprintln(&report, "Required checks (not executed):")
 			for _, check := range p.config.Checks {
@@ -85,7 +88,7 @@ func (c CLI) Doctor(ctx context.Context, args []string, output, stderr io.Writer
 	if ready {
 		fmt.Fprintf(&report, "Ready for a bounded advisory review: ferretta review --repo %s --pr N --policy %q\n", *repo, *path)
 	}
-	fmt.Fprintln(&report, "OpenRouter and automatic review dispatch are not implemented.")
+	fmt.Fprintln(&report, "OpenRouter inference is not implemented. Automatic review requires explicit service watch configuration.")
 	if _, err := output.Write(report.Bytes()); err != nil {
 		return fail(err)
 	}

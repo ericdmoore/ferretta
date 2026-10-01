@@ -36,7 +36,7 @@ func (s Setup) Run(ctx context.Context, args []string, input io.Reader, output, 
 	model := flags.String("model", "", "installed Ollama model; otherwise choose interactively")
 	check := flags.String("check", "", `required check as a JSON argv array, e.g. '["make","check"]'`)
 	effort := flags.String("effort", "", "explicit named reasoning effort: low, medium, high")
-	thinking := flags.String("thinking", "auto", "auto, enabled, low, medium, high")
+	thinking := flags.String("thinking", "auto", "auto, enabled, provider_default (effective setting unknown), low, medium, high")
 	contextTokens := flags.Int("context", 16384, "context token limit; memory use grows with context")
 	maxTurns := flags.Int("max-turns", 100, "model-turn ceiling; 0 disables it")
 	outputTokens := flags.Int("max-output-tokens", 4096, "maximum generated tokens per reply, including thinking")
@@ -178,10 +178,13 @@ func (s Setup) Run(ctx context.Context, args []string, input io.Reader, output, 
 				break
 			}
 		}
+		if requested == "" {
+			return fail(fmt.Errorf("model has no recognized thinking controls; select --thinking provider_default explicitly to accept the model default without assuming thinking is enabled"))
+		}
 	}
 	cfg := config{Provider: "ollama", Endpoint: *endpoint, Model: *model, ContextTokens: *contextTokens,
 		MaxTurns: *maxTurns, MaxTokens: *outputTokens, TimeoutSeconds: *timeout, Checks: [][]string{command}}
-	if requested == "enabled" {
+	if *effort == "" && (requested == "enabled" || requested == "provider_default") {
 		cfg.Thinking = requested
 	} else {
 		cfg.Effort = requested
@@ -197,6 +200,9 @@ func (s Setup) Run(ctx context.Context, args []string, input io.Reader, output, 
 	data = append(data, '\n')
 	if _, err := fmt.Fprintf(output, "Policy for %s:\n%s", *path, data); err != nil {
 		return fail(err)
+	}
+	if p.config.Thinking == "provider_default" {
+		fmt.Fprintln(output, "Thinking: provider default requested; whether thinking is enabled and its effective effort remain unknown.")
 	}
 	if !*yes {
 		answer, err := prompt("Create this policy? [y/N]: ")

@@ -81,3 +81,10 @@ These are concept references, not imported dependencies or copied code:
 
 We retain Ferretta's small Go loop and pure-core/executor boundary. The broader
 frameworks remain useful comparisons as orchestration and compaction develop.
+
+## Automatic reply polling
+
+The explicit [scoped watcher](evaluation.md) publishes proposals and polls human
+replies within its saved workflow. The manual `review --resume` behavior above
+remains available. Neither path lets an agent confirm its own intent or grant
+additional resources.

@@ -35,6 +35,15 @@ func Run(ctx context.Context, args []string, input io.Reader, output, errors io.
 
 func RunWithReviewer(ctx context.Context, args []string, input io.Reader, output, errors io.Writer, client CommentsClient, reviewer ReviewRunner) int {
 	fail := func(err error) int { fmt.Fprintln(errors, err); return 1 }
+	if len(args) > 0 && args[0] == "eval" {
+		evaluator, ok := reviewer.(interface {
+			Eval(context.Context, []string, io.Writer, io.Writer) int
+		})
+		if !ok {
+			return fail(fmt.Errorf("evaluation adapter is not configured"))
+		}
+		return evaluator.Eval(ctx, args[1:], output, errors)
+	}
 	if len(args) > 0 && (args[0] == "init" || args[0] == "doctor" || args[0] == "demo" || args[0] == "model") {
 		onboarding, ok := reviewer.(Onboarding)
 		if !ok {
@@ -54,8 +63,17 @@ func RunWithReviewer(ctx context.Context, args []string, input io.Reader, output
 			return onboarding.Probe(ctx, args[2:], output, errors)
 		}
 	}
-	const usage = "usage: ferretta demo | ferretta init | ferretta doctor --repo owner/repo | ferretta model test | ferretta service run --repo owner/repo [--state /absolute/path] | ferretta service status [--state /absolute/path] | ferretta auth github --repo owner/repo | ferretta intent parse | ferretta intent inspect --repo owner/repo --pr N --humans login --agents login | ferretta review --repo owner/repo --pr N [--policy .ferretta/review.json]"
+	const usage = "usage: ferretta demo | ferretta init | ferretta doctor --repo owner/repo | ferretta model test | ferretta service run --repo owner/repo [--state /absolute/path] | ferretta service watch --repo owner/repo --pr N --state /absolute/path --review-policy PATH --judge-policy PATH --humans login | ferretta service status [--state /absolute/path] | ferretta auth github --repo owner/repo | ferretta intent parse | ferretta intent inspect --repo owner/repo --pr N --humans login --agents login | ferretta review --repo owner/repo --pr N [--policy .ferretta/review.json] [--eval-policy PATH] | ferretta eval --run PATH --policy PATH"
 	if len(args) > 0 && args[0] == "service" {
+		if len(args) > 1 && args[1] == "watch" {
+			watcher, ok := reviewer.(interface {
+				Watch(context.Context, []string, io.Writer, io.Writer) int
+			})
+			if !ok {
+				return fail(fmt.Errorf("workflow adapter is not configured"))
+			}
+			return watcher.Watch(ctx, args[2:], output, errors)
+		}
 		source, _ := client.(service.Source)
 		return (service.CLI{Source: source}).Run(ctx, args[1:], output, errors)
 	}
