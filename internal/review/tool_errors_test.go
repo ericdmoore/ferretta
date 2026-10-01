@@ -12,13 +12,14 @@ func TestToolRecoverySuggestions(t *testing.T) {
 	for _, tc := range []struct {
 		name, args, kind, suggestion string
 	}{
-		{"grep", `{"query":"finishJSON","path":"internal/review"}`, "unknown_tool", "search"},
+		{"ripgrep", `{"query":"finishJSON","path":"internal/review"}`, "unknown_tool", "search"},
 		{"sudo search", `{"query":"x"}`, "unknown_tool", "search"},
 		{"shell", `{}`, "unknown_tool", "list_files"},
 		{"open_file", `{"path":"internal/review/core.go"}`, "unknown_tool", "read_file"},
 		{"open_file", `{"path":"internal/review/"}`, "unknown_tool", "list_files"},
 		{"shell", `{`, "unknown_tool", "list_files"},
 		{"search", `{"query":"[","regex":true}`, "invalid_arguments", "search"},
+		{"grep", `{"query":"[","regex":true}`, "invalid_arguments", "grep"},
 		{"search", `{"query":"finishJSON","path":"internal/review","max_results":999}`, "invalid_arguments", "search"},
 		{"search", `{"path":"../outside"}`, "invalid_arguments", "search"},
 		{"search", `{"query":"x\ny"}`, "invalid_arguments", "list_files"},
@@ -39,7 +40,7 @@ func TestToolRecoverySuggestions(t *testing.T) {
 			if err := json.Unmarshal([]byte(toolFailure("invalid_arguments", tc.name, json.RawMessage(tc.args), err)), &problem); err != nil {
 				t.Fatal(err)
 			}
-			if problem.Error != tc.kind || problem.RequestedTool != tc.name || problem.Recovery == "" || len(problem.AvailableTools) != 7 || (len(problem.InputSchema) == 0) != (tc.kind == "unknown_tool") {
+			if problem.Error != tc.kind || problem.RequestedTool != tc.name || problem.Recovery == "" || len(problem.AvailableTools) != 8 || (len(problem.InputSchema) == 0) != (tc.kind == "unknown_tool") {
 				t.Fatal(problem)
 			}
 			if tc.suggestion == "" {
@@ -56,7 +57,7 @@ func TestToolRecoverySuggestions(t *testing.T) {
 			if err != nil {
 				t.Fatal("suggested call rejected by planner", err)
 			}
-			if tc.name == "grep" {
+			if tc.name == "ripgrep" {
 				search := command.(Search)
 				if search.path != "internal/review" || search.query != "finishJSON" {
 					t.Fatal("lost requested search scope")
@@ -77,7 +78,7 @@ func TestToolExecutionFailureRecovery(t *testing.T) {
 }
 
 func TestUnknownToolDoesNotExecuteSuggestion(t *testing.T) {
-	m := &fakeModel{replies: []Reply{reply("grep", `{"query":"target","path":"src"}`), reply("run_checks", `{}`), reply("finish_review", finishJSON("lgtm"))}}
+	m := &fakeModel{replies: []Reply{reply("ripgrep", `{"query":"target","path":"src"}`), reply("run_checks", `{}`), reply("finish_review", finishJSON("lgtm"))}}
 	r := runner(m)
 	r.Searcher = searchFunc(func(context.Context, string, string, Search) (SearchPage, error) {
 		t.Fatal("suggestion executed without a model request")

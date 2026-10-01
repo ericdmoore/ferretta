@@ -1,11 +1,16 @@
 # Repository search and tool recovery
 
-The local review registry includes `search`, `list_files`, `read_file`,
+The local review registry includes `search`, `grep`, `list_files`, `read_file`,
 `read_diff`, `run_checks`, `request_intent_confirmation`, and `finish_review`.
 Tool calls are structured requests validated by the core. They are not shell
 commands, and there is no general shell or `sudo` tool.
 
 ## Search the reviewed commit
+
+`search` and `grep` are exact aliases: both advertise the same argument schema
+and use the same validation and executor. Either name can continue a search page
+with the same query settings and offset. These are structured tools, not shell
+invocations; `grep` does not accept command-line flags or gain extra permissions.
 
 Example model tool call:
 
@@ -59,7 +64,7 @@ diagnostic message, recovery guidance, and the actual advertised tool names.
 Known tools also include their advertised input schema.
 
 - `unknown_tool`: that name is unavailable. Retrying with different arguments
-  cannot enable it. For example, an unsupported `grep` request containing a
+  cannot enable it. For example, an unsupported `ripgrep` request containing a
   valid query/path can suggest the registered `search` tool with that scope.
   An unknown file-opening tool with a valid path can suggest `read_file`.
 - `invalid_arguments`: the tool exists but its request failed validation.

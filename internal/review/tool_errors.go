@@ -73,7 +73,7 @@ func recoveryCall(name string, arguments json.RawMessage, unknown bool) *toolSug
 		name = "read_file"
 	}
 	switch name {
-	case "search":
+	case "search", "grep":
 		if hint.Query == "" {
 			hint.Query = "text to find"
 		}

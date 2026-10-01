@@ -175,7 +175,7 @@ func Plan(name string, arguments json.RawMessage) (Command, error) {
 		return nil
 	}
 	switch name {
-	case "search":
+	case "search", "grep":
 		var args searchArgs
 		if err := decode(&args); err != nil {
 			return nil, err

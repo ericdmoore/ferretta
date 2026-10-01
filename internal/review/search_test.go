@@ -35,6 +35,36 @@ func TestSearchPolicy(t *testing.T) {
 	searchCommand(t, `{"query":"^word[0-9]+$","path":".","regex":true,"max_results":100,"offset":10000}`).command()
 }
 
+func TestSearchAliases(t *testing.T) {
+	for _, raw := range []string{`{"query":"symbol","path":"src","offset":2}`, `{"query":"^symbol$","regex":true,"max_results":1}`, `{"query":"[","regex":true}`, `{"query":"symbol","path":"../outside"}`, `{"query":"symbol","max_results":101}`} {
+		search, searchErr := Plan("search", json.RawMessage(raw))
+		grep, grepErr := Plan("grep", json.RawMessage(raw))
+		if !reflect.DeepEqual(search, grep) || fmt.Sprint(searchErr) != fmt.Sprint(grepErr) {
+			t.Fatalf("alias changes validation or semantics: %s", raw)
+		}
+	}
+	m := &fakeModel{replies: []Reply{reply("search", `{"query":"target"}`), reply("grep", `{"query":"target","offset":1}`), reply("run_checks", `{}`), reply("finish_review", finishJSON("lgtm"))}}
+	r := runner(m)
+	var offsets []int
+	r.Searcher = searchFunc(func(_ context.Context, dir, revision string, search Search) (SearchPage, error) {
+		if dir != workspace().path || revision != head || search.query != "target" {
+			t.Fatal("alias changed review scope")
+		}
+		offsets = append(offsets, search.skip)
+		return SearchPage{Revision: revision, Matches: []SearchMatch{}}, nil
+	})
+	report := r.Review(context.Background(), policy(t), workspace(), nil, func(Report, []Message) error { return nil })
+	if report.Status != "lgtm" || !reflect.DeepEqual(offsets, []int{0, 1}) {
+		t.Fatal(report, offsets)
+	}
+	for i, name := range []string{"search", "grep"} {
+		messages := m.requests[i+1]
+		if messages[len(messages)-1].ToolName != name {
+			t.Fatal("tool response lost the requested alias")
+		}
+	}
+}
+
 func searchRecord(path string, line int, text string) string {
 	return fmt.Sprintf("%s:%s\x00%d\x00%s\n", head, path, line, text)
 }
