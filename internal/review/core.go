@@ -175,6 +175,12 @@ func Plan(name string, arguments json.RawMessage) (Command, error) {
 		return nil
 	}
 	switch name {
+	case "search":
+		var args searchArgs
+		if err := decode(&args); err != nil {
+			return nil, err
+		}
+		return args.plan()
 	case "request_intent_confirmation":
 		var request ProposalRequest
 		if err := decode(&request); err != nil {

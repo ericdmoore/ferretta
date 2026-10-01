@@ -50,7 +50,7 @@ func NewCLI(connection GitHubConnection) CLI {
 		return fmt.Errorf("local model redirects are not permitted")
 	}}
 	proposals, _ := connection.(ProposalGitHub)
-	return CLI{Proposals: proposals, Runner: Runner{Exec: process, GitHub: connection, Fetch: process.Fetch, Model: Ollama{HTTP: client}, Now: time.Now}, Setup: Setup{HTTP: client, Exec: process, Auth: connection.Status}}
+	return CLI{Proposals: proposals, Runner: Runner{Exec: process, Searcher: process, GitHub: connection, Fetch: process.Fetch, Model: Ollama{HTTP: client}, Now: time.Now}, Setup: Setup{HTTP: client, Exec: process, Auth: connection.Status}}
 }
 
 func (c CLI) Run(ctx context.Context, args []string, output, stderr io.Writer) int {

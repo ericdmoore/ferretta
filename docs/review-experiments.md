@@ -65,7 +65,9 @@ evidence paths can affect both outcomes and latency.
 3. **Search and recovery ergonomics need work.** A bounded search tool against
    the exact reviewed revision could avoid repeated large file reads. Unknown
    tool errors should direct the model toward available tools; currently they
-   only reject the unsupported name. Neither improvement is implemented here.
+   only reject the unsupported name. Both were subsequently implemented in the
+   [search and recovery follow-up](review-tools.md); the observations here describe
+   the earlier runs.
 4. **Proposal usefulness exceeds structural validation.** Topic syntax, required
    fields, and human identity checks do not ensure a question concerns intended
    software behavior. Prompt guidance helps, but both genuine questions and
@@ -91,3 +93,25 @@ Each contains an advisory report and private continuation data. These artifacts
 are not included in this document or release assets. No proposal or verdict was
 posted to GitHub, and no repair or merge was performed. Offline `make check`
 passed after the prompt changes; statement coverage remains 99.20%.
+
+## Search and recovery follow-up
+
+Added the registered search tool and structured recovery responses, with offline
+Git fixtures verifying exact-revision reads, literal scoping, regex queries,
+pagination, output bounds, and failed-operation handling. Fake-client review
+tests verify that a rejected call performs no search and a corrected follow-up
+can continue the review. Suggestions are never executed automatically.
+
+A further live PR #1 review used the same model, revision, and policy above.
+It completed with advisory LGTM after 19 replies in 2m 6.153s, with 218,496
+reported input/output tokens and passing checks. It attempted `open_file` once;
+the structured response listed the actual tools, after which the model called
+`read_file` and continued. This attempt supplied three tradeoffs in its final
+verdict, but still did not request `read_diff` or `search`. It therefore provides
+one live recovery example, not live proof of search usage or review completeness.
+
+The live build suggested file listing for that unknown call. The final recovery
+implementation further preserves a valid path from unknown file-opening calls
+by suggesting `read_file`; that refinement is covered by offline tests. Private
+artifacts are in `.ferretta/runs/pr-1-08815c3e-1432435817/`. No GitHub comment,
+repair, or merge was performed.

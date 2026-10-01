@@ -167,6 +167,10 @@ bin/ferretta review --repo ericdmoore/ferretta --pr 1
 
 Use the actual open, non-draft PR number. Run from a checkout whose `origin` matches that repository. The command fetches exact head/base commits, creates a temporary detached worktree, and gives the model tools to read files, list files, run the policy's checks, and submit a verdict. The first adapter executes the configured checks directly in that worktree, so use a policy and PR code you trust to execute locally; the worktree is isolation from your checkout, not an operating-system sandbox.
 
+The [review tool registry](docs/review-tools.md) also provides bounded literal or
+regex search against the exact commit. Invalid calls receive structured recovery
+guidance with available tools, input schemas, and valid suggestions.
+
 Exit code 0 means an advisory LGTM whose configured checks passed; code 2 means changes, clarification, or incomplete review; code 1 means a setup/output failure. The PR head and base are checked again before returning. Private session checkpoints and a report are written under `.ferretta/runs/` (ignored by Git). Terminal output defaults to readable text; use `--format json` for scripts. The public report retains requested model/effort and observed model/token usage; effective effort stays unknown unless reported by the provider. Session checkpoints preserve model continuation data and are not uploaded.
 
 Ordinary review invocations start new attempts. `--publish-proposals --humans YOUR_LOGIN` enables durable proposal posting, and `--resume PATH` polls for human replies and continues the saved conversation. Reviews use PR metadata, a diff summary, and paged diff/source tools. Automatic notifications and general interrupted-model replay remain future work. See [proposal sessions](docs/proposals.md).
