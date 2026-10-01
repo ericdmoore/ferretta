@@ -9,21 +9,29 @@ import (
 
 // PullRequest retains the existing report representation while adapting REST.
 type PullRequest struct {
-	Number int    `json:"number"`
-	Head   string `json:"headRefOid"`
-	Base   string `json:"baseRefOid"`
-	URL    string `json:"url"`
-	Title  string `json:"title"`
-	Body   string `json:"body"`
-	State  string `json:"state"`
-	Draft  bool   `json:"isDraft"`
+	Number         int    `json:"number"`
+	Head           string `json:"headRefOid"`
+	Base           string `json:"baseRefOid"`
+	URL            string `json:"url"`
+	Title          string `json:"title"`
+	Body           string `json:"body"`
+	State          string `json:"state"`
+	Draft          bool   `json:"isDraft"`
+	Author         string `json:"author,omitempty"`
+	HeadRepository string `json:"headRepository,omitempty"`
 }
 
 type pullResponse struct {
 	Number int `json:"number"`
 	Head   struct {
-		SHA string `json:"sha"`
+		SHA  string `json:"sha"`
+		Repo struct {
+			FullName string `json:"full_name"`
+		} `json:"repo"`
 	} `json:"head"`
+	User struct {
+		Login string `json:"login"`
+	} `json:"user"`
 	Base struct {
 		SHA string `json:"sha"`
 	} `json:"base"`
@@ -35,7 +43,7 @@ type pullResponse struct {
 }
 
 func (p pullResponse) pullRequest() PullRequest {
-	return PullRequest{p.Number, p.Head.SHA, p.Base.SHA, p.URL, p.Title, p.Body, strings.ToUpper(p.State), p.Draft}
+	return PullRequest{Number: p.Number, Head: p.Head.SHA, Base: p.Base.SHA, URL: p.URL, Title: p.Title, Body: p.Body, State: strings.ToUpper(p.State), Draft: p.Draft, Author: p.User.Login, HeadRepository: p.Head.Repo.FullName}
 }
 
 func (c Client) PullRequest(ctx context.Context, repo string, number int) (PullRequest, error) {

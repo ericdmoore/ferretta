@@ -78,6 +78,19 @@ func EvaluationMarkdown(e Evaluation) string {
 	} else {
 		fmt.Fprintf(&b, "\n%s\n", quoted(e.Assessment.Summary))
 		names := []string{"Correctness", "Evidence", "Intent alignment", "Judgment", "Actionability", "Communication"}
+		fmt.Fprintf(&b, "\n| Scope | %s |\n| --- | --- | --- | --- | --- | --- | --- |\n", strings.Join(names, " | "))
+		for i, role := range []RoleGrades{e.Assessment.Worker, e.Assessment.Oversight} {
+			fmt.Fprintf(&b, "| **%s** |", []string{"Worker output", "Oversight decision"}[i])
+			for _, g := range role.dimensions() {
+				if g.Score == nil {
+					fmt.Fprint(&b, " Not assessed |")
+				} else {
+					fmt.Fprintf(&b, " %d/3 |", *g.Score)
+				}
+			}
+			fmt.Fprintln(&b)
+		}
+		fmt.Fprintln(&b, "\nScores use a 0–3 scale. Not assessed means insufficient evidence or inapplicability, not zero. Reasons and evidence follow.")
 		for i, role := range []RoleGrades{e.Assessment.Worker, e.Assessment.Oversight} {
 			fmt.Fprintf(&b, "\n### %s\n", []string{"Worker output", "Oversight decision"}[i])
 			for j, g := range role.dimensions() {

@@ -18,7 +18,7 @@ import (
 )
 
 func TestWatchExplicitAndQueuedRetry(t *testing.T) {
-	for _, mode := range []string{"operator", "queue", "rejected", "bad-json", "wrong-id", "read-failure", "save-failure", "ack-failure"} {
+	for _, mode := range []string{"operator", "queue", "rejected", "bad-json", "wrong-id", "read-failure", "save-failure", "ack-failure", "reject-ack-failure", "budget-rejected", "operator-queue"} {
 		t.Run(mode, func(t *testing.T) {
 			t.Chdir(t.TempDir())
 			_ = os.WriteFile("review.json", []byte(policyJSON), 0600)
@@ -35,9 +35,16 @@ func TestWatchExplicitAndQueuedRetry(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			if mode == "budget-rejected" {
+				job.ReviewNanos = 60 * 1e9
+				data, _ := json.Marshal(job)
+				if err := s.SaveReview(context.Background(), workflowKey("o/r", 1), data); err != nil {
+					t.Fatal(err)
+				}
+			}
 			id := job.Runs[0].Checks["review"].Result.ID
 			req := retryRequest{ID: "delivery", CheckID: id, Actor: "human"}
-			if mode == "rejected" {
+			if mode == "rejected" || mode == "reject-ack-failure" {
 				req.CheckID = 1000
 			}
 			if mode == "wrong-id" {
@@ -62,7 +69,7 @@ func TestWatchExplicitAndQueuedRetry(t *testing.T) {
 				_, err = db.Exec("DROP TABLE retry_inbox")
 			case "save-failure":
 				_, err = db.Exec("CREATE TRIGGER fail_save BEFORE UPDATE ON review_session BEGIN SELECT RAISE(ABORT,'disk failure'); END")
-			case "ack-failure":
+			case "ack-failure", "reject-ack-failure":
 				_, err = db.Exec("CREATE TRIGGER fail_ack BEFORE UPDATE ON retry_inbox BEGIN SELECT RAISE(ABORT,'disk failure'); END")
 			}
 			db.Close()
@@ -70,27 +77,38 @@ func TestWatchExplicitAndQueuedRetry(t *testing.T) {
 				t.Fatal(err)
 			}
 			args := []string{"--repo", "o/r", "--pr", "1", "--state", state, "--review-policy", "review.json", "--judge-policy", "judge.json", "--humans", "human", "--once"}
-			if mode == "operator" {
+			if mode == "operator" || mode == "operator-queue" {
 				args = append(args, "--retry-check", strconv.FormatInt(id, 10), "--retry-id", "delivery")
 			}
 			m.replies = workflowReplies()
 			var errs bytes.Buffer
 			code := c.Watch(context.Background(), args, io.Discard, &errs)
 			want := 1
-			if mode == "operator" || mode == "queue" || mode == "rejected" {
+			if mode == "operator" || mode == "operator-queue" || mode == "queue" || mode == "rejected" || mode == "budget-rejected" {
 				want = 0
 			}
 			if code != want {
 				t.Fatal(mode, code, errs.String())
 			}
-			if mode == "operator" || mode == "queue" || mode == "ack-failure" {
+			if mode == "operator" || mode == "operator-queue" || mode == "queue" || mode == "ack-failure" {
 				if len(m.requests) != 6 {
 					t.Fatal("retry did not run once", len(m.requests))
 				}
 			} else if len(m.requests) != 3 {
 				t.Fatal("rejected request spent", len(m.requests))
 			}
-			if mode == "operator" || mode == "queue" {
+			if mode == "operator-queue" {
+				saved, err := service.OpenStore(state)
+				if err != nil {
+					t.Fatal(err)
+				}
+				pending, err := saved.PendingRetries(context.Background())
+				saved.Close()
+				if err != nil || len(pending) != 1 {
+					t.Fatal("operator retry drained webhook inbox", pending, err)
+				}
+			}
+			if mode == "operator" || mode == "operator-queue" || mode == "queue" {
 				if code := c.Watch(context.Background(), args, io.Discard, &errs); code != 0 || len(m.requests) != 6 {
 					t.Fatal("redelivery repeated model work", code, errs.String())
 				}
