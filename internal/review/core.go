@@ -61,8 +61,8 @@ func parsePolicy(data []byte, checksRequired bool) (Policy, error) {
 	if c.Provider != "ollama" || strings.TrimSpace(c.Model) == "" {
 		return Policy{}, fmt.Errorf("an explicit Ollama model is required")
 	}
-	if !((c.Thinking == "enabled" && c.Effort == "") || (c.Thinking == "" && (c.Effort == "low" || c.Effort == "medium" || c.Effort == "high"))) {
-		return Policy{}, fmt.Errorf("select thinking: enabled OR effort: low, medium, high")
+	if !(((c.Thinking == "enabled" || c.Thinking == "provider_default") && c.Effort == "") || (c.Thinking == "" && (c.Effort == "low" || c.Effort == "medium" || c.Effort == "high"))) {
+		return Policy{}, fmt.Errorf("select thinking: enabled/provider_default OR effort: low, medium, high")
 	}
 	if c.ContextTokens == 0 {
 		c.ContextTokens = 65536
@@ -96,6 +96,9 @@ func validateOllamaEndpoint(endpoint string) error {
 }
 
 func (p Policy) thinkValue() any {
+	if p.config.Thinking == "provider_default" {
+		return nil // Explicit Ollama think:null; this does not promise thinking is enabled.
+	}
 	if p.config.Thinking == "enabled" {
 		return true
 	}

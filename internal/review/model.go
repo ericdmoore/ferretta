@@ -135,7 +135,11 @@ func (info ModelInfo) validate(p Policy) error {
 	if p.config.Thinking == "enabled" {
 		requested = "enabled"
 	}
-	if !slices.Contains(info.thinkingValues(), requested) {
+	if p.config.Thinking == "provider_default" {
+		if !info.permitsThinkingDefault() {
+			return fmt.Errorf("model thinking metadata does not establish thinking capability")
+		}
+	} else if !slices.Contains(info.thinkingValues(), requested) {
 		return fmt.Errorf("model does not establish support for requested thinking setting; choose a supported setting or update Ollama")
 	}
 	var architecture string
@@ -144,6 +148,27 @@ func (info ModelInfo) validate(p Policy) error {
 		return fmt.Errorf("model context capacity is unknown or below context_tokens")
 	}
 	return nil
+}
+
+// The capability check above is still required. Missing control metadata can
+// support an explicit request for the provider's default, never an assertion
+// that thinking is enabled. Explicitly non-thinking/invalid control metadata
+// cannot be bypassed by selecting a default. Model-defined named levels are
+// opaque here; Ferretta is not requesting or interpreting a particular level.
+func (info ModelInfo) permitsThinkingDefault() bool {
+	if info.Thinking == nil {
+		return true
+	}
+	for _, value := range info.Thinking.Values {
+		if strings.TrimSpace(string(value)) == "true" {
+			return true
+		}
+		var name string
+		if json.Unmarshal(value, &name) == nil && strings.TrimSpace(name) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func (o Ollama) Capabilities(ctx context.Context, p Policy) error {
