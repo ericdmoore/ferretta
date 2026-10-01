@@ -172,6 +172,9 @@ func TestRetryWebhookListener(t *testing.T) {
 			case "public-secret":
 				path = filepath.Join(dir, "public")
 				_ = os.WriteFile(path, webhookSecret, 0644)
+				if err := os.Chmod(path, 0644); err != nil {
+					t.Fatal(err)
+				}
 			case "short-secret":
 				path = filepath.Join(dir, "short")
 				_ = os.WriteFile(path, []byte("short"), 0600)
