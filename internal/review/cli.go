@@ -39,6 +39,7 @@ type CLI struct {
 	Checks          github.Checks
 	PublicationMode string
 	Progress        io.Writer
+	Retry           *retryRequest
 }
 
 type GitHubConnection interface {

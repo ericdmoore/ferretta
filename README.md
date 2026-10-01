@@ -30,6 +30,7 @@ amd64/arm64 with CGO disabled.
 | Intent inspection | Parses and inspects existing proposal/correction/confirmation comments. Proposal sessions retain authenticated human correction/confirmation evidence. |
 | Background service | Intake-only polling, or explicit `service watch` for one PR with review/evaluation Checks, checkpoint progress, and intent-question comments. |
 | Automated scorecard | A separate read-only judge grades worker output and the oversight decision; records evidence and model/tool usage. |
+| Check retries | Explicit CLI retries or signed GitHub Check re-run webhooks create durable attempts while retaining history and cumulative compute allowances. Evaluation-only retries preserve the review. |
 
 Reviews can produce findings, an intent question, an advisory LGTM, or an
 incomplete result when checks, context, or resource limits prevent completion.

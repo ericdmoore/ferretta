@@ -119,10 +119,64 @@ progress continues. Missing, edited or duplicate uncertain results stop for
 operator reconciliation; they are never blindly recreated or patched again.
 Superseded unfinished revisions receive cancelled Checks on their original SHA.
 
-Check rerun buttons/webhook handling, line annotations, a self-hosted Actions
-adapter, and a live log server remain future work. Checks do not enable repair,
-merge, new spending, or branch protection. Keep evaluation informational while
+Line annotations, a self-hosted Actions adapter, and a live log server remain
+future work. Checks do not enable repair, merge, extra allowances, or branch protection. Keep evaluation informational while
 grading is calibrated. Existing build/test CI remains separate from model review.
+
+## Retry a Check
+
+Retrying `Ferretta / review` creates a fresh model session and new review/evaluation
+Checks on the same head/base commits. Retrying `Ferretta / evaluation` creates
+only a new judge session and evaluation Check, reusing the original review evidence
+and leaving its Check unchanged. Previous attempts, request identity, actor,
+source Check and policy provenance remain in SQLite. New Check summaries identify
+the retry. Cumulative review/evaluation compute allowances are never reset;
+configured turn/context limits still apply to each model session.
+
+Only the latest completed attempt on the current revision is eligible. Stale
+Checks, pending intent questions, exhausted allowances and uncertain interrupted
+consumption are rejected. A request ID is idempotent, and the same source Check
+cannot grant multiple retries under different delivery IDs. Use the new Check for
+another intentional attempt. Confirmed intent is preserved for same-revision
+review retries; cross-revision carry-forward remains [issue #7](https://github.com/ericdmoore/ferretta/issues/7).
+
+An operator can retry without an inbound endpoint. Stop the watcher first so the
+same state directory has one owner, then reuse its policies and human allowlist:
+
+```sh
+bin/ferretta service watch --repo ericdmoore/ferretta --pr 6 \
+  --state /absolute/private/state --review-policy .ferretta/review.json \
+  --judge-policy /absolute/private/judge.json --humans ericdmoore \
+  --once --retry-check CHECK_RUN_ID --retry-id operator-attempt-1
+```
+
+`CHECK_RUN_ID` is the numeric ID in the Check details URL. Choose a new request ID
+for a new intentional attempt; reuse it if command delivery/outcome is uncertain.
+Neither restarting the watcher nor deleting state is the retry mechanism.
+
+To use GitHub's **individual Check re-run control**, configure optional webhook
+delivery. This handles `check_run.rerequested`; suite-wide **Re-run all** is not
+implemented. GitHub sends the signal; it does not run the model itself.
+
+1. Create a random webhook secret of at least 32 characters. Store it outside the
+   repository in a private regular file (mode 0600), and enter the same value in
+   the GitHub App's webhook settings. It is separate from the App's PEM key.
+2. Start continuous watch with `--webhook-listen 127.0.0.1:8787` and
+   `--webhook-secret-file /absolute/private/webhook-secret`, alongside the usual
+   repository, PR, policies, state and human allowlist arguments. Do not add `--once`.
+3. Forward a public HTTPS URL to `http://127.0.0.1:8787/github/webhook` using your
+   reverse proxy/tunnel, preserving the request body and GitHub headers. Set that
+   HTTPS URL as the App webhook URL and activate webhook delivery. Checks write
+   permission provides the relevant Check event subscription.
+4. An allowlisted human can re-request an individual Ferretta Check. The watcher
+   verifies the HMAC-SHA256 signature, installation, repository, App and sender,
+   persists the request before acknowledging it, and processes it on the next poll.
+   Receipt acknowledgement means queued, not admitted; logs report acceptance or
+   rejection. Unrelated events are ignored. Repeated delivery does not repeat work.
+
+The listener binds only to loopback and never starts a tunnel. Keep the service
+running for button delivery; durable queued requests survive restarts. This does
+not require a GitHub Actions runner. See GitHub's [re-request API](https://docs.github.com/en/rest/checks/runs#rerequest-a-check-run).
 
 ## Read the scorecard
 
@@ -181,7 +235,8 @@ There is no reconciliation/allowance-reset UI yet; do not delete state to retry.
 Known human waits resume automatically on the same revision and policy.
 
 Completed revisions do not spend again on repeated polls or a force-push back to
-an already observed head/base pair. New revisions retain history and cumulative
+an already observed head/base pair. Explicit admitted Check retries create separate
+attempts. New revisions retain history and cumulative
 allowances. Changed policy or human allowlist requires operator reconciliation.
 A superseded run never approves the new head. Watch stdout exposes phases,
 comment URLs, and active time; `service status` remains an intake snapshot, not a

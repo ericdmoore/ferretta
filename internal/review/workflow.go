@@ -43,6 +43,9 @@ type publication struct {
 
 type workflowRun struct {
 	ID                 string                  `json:"id"`
+	Retry              *retryRequest           `json:"retry,omitempty"`
+	RetryParent        string                  `json:"retry_parent,omitempty"`
+	ReviewSource       string                  `json:"review_source,omitempty"`
 	Phase              workflowPhase           `json:"phase"`
 	Session            managedSession          `json:"session"`
 	Evaluation         *Evaluation             `json:"evaluation,omitempty"`
@@ -140,6 +143,19 @@ func (c CLI) advanceWorkflow(ctx context.Context, store workflowStore, repo stri
 				}
 			} else if effect.Delivery != Draft || effect.Request.Validate() != nil {
 				return job, fmt.Errorf("invalid persisted check state")
+			}
+		}
+	}
+	if c.Retry != nil {
+		next, err := planRetry(job, *c.Retry, pr, reviewPolicy, judgePolicy)
+		if err != nil {
+			return job, retryRejected{err}
+		}
+		if next != nil {
+			job.Runs = append(job.Runs, next)
+			run = next
+			if err := save(); err != nil {
+				return job, err
 			}
 		}
 	}
@@ -364,7 +380,7 @@ func (c CLI) executeWorkflowReview(ctx context.Context, run *workflowRun, p Poli
 		_, _ = c.Runner.Exec.Run(cleanup, "", "git", "worktree", "remove", "--force", workspace)
 	}()
 	if len(run.Session.Messages) == 0 {
-		run.Session.Report = c.Runner.Review(ctx, p, w, policyBytes, checkpoint)
+		run.Session.Report = c.Runner.reviewWithIntent(ctx, p, w, policyBytes, run.Session.Report.Proposals, checkpoint)
 	} else {
 		run.Session.Report = c.Runner.continueReview(ctx, p, w, run.Session.Session, checkpoint)
 	}

@@ -87,7 +87,7 @@ components require explicit selection; do not collect unused OpenRouter keys or
 claim LiteLLM/OpenRouter inference is implemented. Public installation requires
 a published release and HTTPS; drafting assets does not publish them.
 
-Check publication uses a separate repository-scoped Checks write token; fetch and comment token scopes stay unchanged. Public progress contains only harness operation names and accounting. No native Actions streaming logs or check-rerun webhook handler is implemented.
+Check publication uses a separate repository-scoped Checks write token; fetch and comment token scopes stay unchanged. Public progress contains only harness operation names and accounting. Individual Check retries support explicit CLI request IDs and optional HMAC-verified `check_run.rerequested` webhooks from allowlisted humans. SQLite retains the inbox and previous attempts; retries preserve cumulative compute allowances and never replay uncertain consumption. Evaluation-only retry preserves the source review. The loopback listener needs a separately configured HTTPS forwarder and private webhook secret. Suite-wide reruns and native Actions streaming logs are not implemented.
 
 Evaluation uses a separate read-only session. `eval` grades saved reports without
 publication; `service watch` posts its scorecard through the App. Grades never

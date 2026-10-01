@@ -84,6 +84,9 @@ func (c CLI) publishCheck(ctx context.Context, job *workflowJob, run *workflowRu
 	input := github.CheckInput{Name: "Ferretta / " + role, Head: run.Session.Report.PR.Head,
 		ExternalID: hashBytes([]byte(run.ID + "/checks/" + role)), Status: status, Conclusion: conclusion,
 		Output: github.CheckOutput{Title: title, Summary: fmt.Sprintf("PR #%d · head `%s` · base `%s`\n\nReviewer policy `%s`; judge policy `%s`.\n\n%s", job.PR, run.Session.Report.PR.Head, run.Session.Report.PR.Base, job.ReviewPolicy, job.JudgePolicy, title), Text: text}}
+	if run.Retry != nil {
+		input.Output.Summary += fmt.Sprintf("\n\nRetry `%s`, requested by `%s`, of Check `%d`. Previous attempt: `%s`. Allowances remain cumulative.", run.Retry.ID, run.Retry.Actor, run.Retry.CheckID, run.RetryParent)
+	}
 	if err := input.Validate(); err != nil {
 		return err
 	}
@@ -221,6 +224,9 @@ func (c CLI) publishMilestone(ctx context.Context, job *workflowJob, run *workfl
 		return c.publishCheck(ctx, job, run, "evaluation", "completed", conclusion, title, body, save)
 	default: // Superseded revision: both old checks become terminal.
 		for _, role := range []string{"review", "evaluation"} {
+			if role == "review" && run.ReviewSource != "" {
+				continue // Evaluation retries never mutate the source review Check.
+			}
 			if err := c.publishCheck(ctx, job, run, role, "completed", "cancelled", "Superseded revision", body, save); err != nil {
 				return err
 			}

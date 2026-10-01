@@ -16,7 +16,8 @@ not register an app, repair code, or merge PRs. Registration remains a browser s
 2. Choose an available name (for example, `ferretta-ericdmoore`) and use
    `https://github.com/ericdmoore/ferretta` as the homepage.
 3. Leave user OAuth callbacks/device authorization unconfigured. Disable the
-   webhook for the current polling/manual-review version.
+   webhook for polling/manual review. Enable it only when configuring the optional
+   [signed Check retry listener](evaluation.md).
 4. Grant repository **Contents: read-only** and **Pull requests: read/write** for proposal posting
    (read-only is sufficient for inspection and ordinary review).
    For `service watch --publication checks` (the default), also grant
