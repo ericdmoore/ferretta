@@ -1,0 +1,1 @@
+{{ define "main" }}<main id="main" class="wrap docs-index"><p class="eyebrow">The field guide</p><h1>From install<br>to understanding.</h1><div class="prose">{{ .Content }}</div><div class="doc-links">{{ range .Pages.ByWeight }}<a href="{{ .RelPermalink }}"><span>{{ .Title }}</span><p>{{ .Description }}</p><span aria-hidden="true">↗</span></a>{{ end }}</div></main>{{ end }}

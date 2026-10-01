@@ -15,6 +15,8 @@ import (
 	"time"
 )
 
+const testModelInfo = `{"capabilities":["tools","thinking"],"details":{"family":"gptoss"},"model_info":{"general.architecture":"gptoss","gptoss.context_length":131072}}`
+
 const policyJSON = `{"provider":"ollama","endpoint":"http://127.0.0.1:11434","model":"local-model","effort":"medium","max_turns":5,"max_tokens_per_turn":4096,"timeout_seconds":60,"checks":[["make","check"]]}`
 
 var head = strings.Repeat("a", 40)
@@ -36,7 +38,7 @@ func TestPolicyBoundary(t *testing.T) {
 	for _, bad := range []string{
 		`{`, policyJSON + ` {}`, policyJSON + ` garbage`, strings.Replace(policyJSON, `"provider":"ollama"`, `"provider":"hosted"`, 1),
 		strings.Replace(policyJSON, `"medium"`, `"unlimited"`, 1), strings.Replace(policyJSON, `"local-model"`, `""`, 1),
-		strings.Replace(policyJSON, `"max_turns":5`, `"max_turns":0`, 1), strings.Replace(policyJSON, `"checks":[["make","check"]]`, `"checks":[]`, 1),
+		strings.Replace(policyJSON, `"max_turns":5`, `"max_turns":-1`, 1), strings.Replace(policyJSON, `"checks":[["make","check"]]`, `"checks":[]`, 1),
 		strings.Replace(policyJSON, `"checks":[["make","check"]]`, `"checks":[[]]`, 1), strings.Replace(policyJSON, `"provider"`, `"unknown"`, 1),
 	} {
 		if _, e := ParsePolicy([]byte(bad)); e == nil {
@@ -97,9 +99,6 @@ func (f commandFunc) Run(c context.Context, d, n string, a ...string) ([]byte, e
 func defaultExec(_ context.Context, _ string, name string, args ...string) ([]byte, error) {
 	key := name + " " + strings.Join(args, " ")
 	switch {
-	case strings.HasPrefix(key, "gh pr view"):
-		data, _ := json.Marshal(pr())
-		return data, nil
 	case key == "git remote get-url origin":
 		return []byte("https://github.com/o/r.git\n"), nil
 	case strings.HasPrefix(key, "git merge-base"):
@@ -140,9 +139,16 @@ func reply(name, args string) Reply {
 	call.Function.Arguments = json.RawMessage(args)
 	return Reply{Model: "actual-local-model", Done: true, DoneReason: "stop", Message: Message{Role: "assistant", Thinking: "private continuation", ToolCalls: []ToolCall{call}}, PromptTokens: 10, OutputTokens: 20}
 }
-func runner(m *fakeModel) Runner {
-	return Runner{Exec: commandFunc(defaultExec), Model: m, Now: func() time.Time { return time.Unix(100, 0).UTC() }}
+
+type prFunc func(context.Context, string, int) (PR, error)
+
+func (f prFunc) PullRequest(ctx context.Context, repo string, n int) (PR, error) {
+	return f(ctx, repo, n)
 }
+func runner(m *fakeModel) *Runner {
+	return &Runner{Exec: commandFunc(defaultExec), GitHub: prFunc(func(context.Context, string, int) (PR, error) { return pr(), nil }), Fetch: func(context.Context, string, string) error { return nil }, Model: m, Now: func() time.Time { return time.Unix(100, 0).UTC() }}
+}
+
 func workspace() Workspace { return Workspace{path: "scratch", mergeBase: base, pr: pr()} }
 
 func TestPRAndWorkspaceValidation(t *testing.T) {
@@ -156,12 +162,16 @@ func TestPRAndWorkspaceValidation(t *testing.T) {
 		t.Fatal("bad target accepted")
 	}
 	for _, data := range []string{`{`, `{"number":1}`, `{"number":1,"state":"CLOSED"}`} {
-		r.Exec = commandFunc(func(context.Context, string, string, ...string) ([]byte, error) { return []byte(data), nil })
+		r.GitHub = prFunc(func(context.Context, string, int) (PR, error) {
+			var p PR
+			err := json.Unmarshal([]byte(data), &p)
+			return p, err
+		})
 		if _, e := r.PR(ctx, "o/r", 1); e == nil {
 			t.Fatal("bad PR accepted")
 		}
 	}
-	r.Exec = commandFunc(func(context.Context, string, string, ...string) ([]byte, error) { return nil, errors.New("offline") })
+	r.GitHub = prFunc(func(context.Context, string, int) (PR, error) { return PR{}, errors.New("offline") })
 	if _, e := r.PR(ctx, "o/r", 1); e == nil {
 		t.Fatal("missing provider error")
 	}
@@ -169,7 +179,12 @@ func TestPRAndWorkspaceValidation(t *testing.T) {
 	if w, e := r.Prepare(ctx, "o/r", pr(), "scratch"); e != nil || w.pr.Head != head || w.mergeBase != base {
 		t.Fatal(w, e)
 	}
-	for _, operation := range []string{"remote", "fetch", "merge-base", "worktree"} {
+	r.Fetch = func(context.Context, string, string) error { return errors.New("fetch failed") }
+	if _, e := r.Prepare(ctx, "o/r", pr(), "scratch"); e == nil {
+		t.Fatal("lost fetch failure")
+	}
+	r.Fetch = func(context.Context, string, string) error { return nil }
+	for _, operation := range []string{"remote", "merge-base", "worktree"} {
 		r.Exec = commandFunc(func(ctx context.Context, d, n string, a ...string) ([]byte, error) {
 			if n == "git" && a[0] == operation {
 				return nil, errors.New("failed")
@@ -205,7 +220,7 @@ func TestReviewToolsAndApproval(t *testing.T) {
 	})
 	checkpoints := 0
 	got := r.Review(context.Background(), policy(t), workspace(), []byte(policyJSON), func(report Report, msg []Message) error { checkpoints++; return nil })
-	if got.Status != "lgtm" || len(got.Attempts) != 5 || checkCalls != 1 || checkpoints != 9 || got.EffectiveEffort != nil || got.RequestedEffort != "medium" {
+	if got.Status != "lgtm" || len(got.Attempts) != 5 || checkCalls != 1 || checkpoints != 14 || got.EffectiveEffort != nil || got.RequestedEffort != "medium" {
 		t.Fatalf("bad report: %+v; checkpoints %d", got, checkpoints)
 	}
 	if m.requests[1][2].Thinking != "private continuation" || m.requests[1][3].Role != "tool" {
@@ -267,9 +282,9 @@ func TestReviewFailureOutcomes(t *testing.T) {
 			t.Fatal(got)
 		}
 	}
-	r := runner(&fakeModel{replies: []Reply{reply("read_file", `{"path":"large.txt"}`)}})
+	r := runner(&fakeModel{replies: []Reply{reply("list_files", `{}`)}})
 	r.Exec = commandFunc(func(c context.Context, d, n string, a ...string) ([]byte, error) {
-		if a[0] == "show" {
+		if a[0] == "ls-tree" {
 			return []byte(strings.Repeat("x", 64001)), nil
 		}
 		return defaultExec(c, d, n, a...)
@@ -303,7 +318,7 @@ func TestOllamaProtocol(t *testing.T) {
 			t.Fatal("bad request")
 		}
 		if req.URL.Path == "/api/show" {
-			return httpResponse(200, `{"capabilities":["tools","thinking"]}`), nil
+			return httpResponse(200, testModelInfo), nil
 		}
 		var body map[string]json.RawMessage
 		if e := json.NewDecoder(req.Body).Decode(&body); e != nil {
@@ -369,5 +384,42 @@ func TestSave(t *testing.T) {
 	}
 	if e := Save(dir, "value"); e == nil {
 		t.Fatal("lost rename error")
+	}
+}
+
+func TestReviewTurnAllowance(t *testing.T) {
+	for _, turns := range []int{0, 1, 100, 200, 1000} {
+		data := strings.Replace(policyJSON, `"max_turns":5`, fmt.Sprintf(`"max_turns":%d`, turns), 1)
+		if p, err := ParsePolicy([]byte(data)); err != nil || p.config.MaxTurns != turns {
+			t.Fatal(turns, err)
+		}
+	}
+	for _, turns := range []int{-1, -100} {
+		data := strings.Replace(policyJSON, `"max_turns":5`, fmt.Sprintf(`"max_turns":%d`, turns), 1)
+		if _, err := ParsePolicy([]byte(data)); err == nil {
+			t.Fatal("invalid turn allowance accepted", turns)
+		}
+	}
+	p, err := ParsePolicy([]byte(strings.Replace(policyJSON, `"max_turns":5`, `"max_turns":100`, 1)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var replies []Reply
+	for i := 0; i < 35; i++ {
+		replies = append(replies, reply("run_checks", `{"cmd":"not authorized"}`))
+	}
+	replies = append(replies, reply("run_checks", `{}`), reply("finish_review", finishJSON("lgtm")))
+	m := &fakeModel{replies: replies}
+	r := runner(m)
+	checkCalls := 0
+	r.Exec = commandFunc(func(c context.Context, d, n string, a ...string) ([]byte, error) {
+		if n == "make" {
+			checkCalls++
+		}
+		return defaultExec(c, d, n, a...)
+	})
+	got := r.Review(context.Background(), p, workspace(), nil, func(Report, []Message) error { return nil })
+	if got.Status != "lgtm" || len(got.Attempts) != 37 || checkCalls != 1 {
+		t.Fatalf("extended allowance failed: status=%s turns=%d checks=%d", got.Status, len(got.Attempts), checkCalls)
 	}
 }

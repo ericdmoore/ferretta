@@ -1,0 +1,10 @@
+# DESIGN DRAFT: not accepted by the current CLI.
+# Built-in preference preset; does not grant routes, spending, or tools.
+schema_version = 1
+objective = "quality"
+
+[routing]
+prefer = "strongest_review_evidence"
+
+[planning]
+strategy = "independent_then_synthesize"

@@ -1,0 +1,4 @@
+{{ $doc := resources.Get (printf "repo-docs/%s" (.Get 0)) }}
+{{ if not $doc }}{{ errorf "Missing repository document: %s" (.Get 0) }}{{ end }}
+{{ $body := replaceRE `(?s)^#[^\n]*\n` "" $doc.Content }}
+{{ .Page.RenderString (dict "display" "block") $body }}

@@ -1,16 +1,133 @@
-# ferretta
-Ferretta (based on a "via ferrata") is a specific-harness for AI models.
+# Ferretta
 
-## Motivating Mission
-Budget Controls, 
-Graceful Model Degradation, 
-Context consistency,
-Local extensibility
+**A local-first PR review harness for correctness, human intent, and implementation tradeoffs.**
 
-## Status
-Experimental. The pure Go CLI parses intent markers, inspects existing GitHub PR comments, and can run a bounded local-model review of a submitted PR. The broader notification-driven harness below remains a design draft. It is still worth evaluating which parts could be accomplished with a customized pi.dev.
+Work with any coding agent, using any workflow. Once that agent submits a pull
+request, Ferretta reviews the proposed commits against trusted repository policy.
+It looks for bugs, consequential ambiguity, and unnecessary complexity. An earned
+LGTM is a valid result; the reviewer should not manufacture work.
 
-The `review` command prepares an isolated workspace at exact commits, applies a trusted local repository policy, runs an Ollama tool loop, and saves model/effort provenance. Notification intake, OpenRouter inference, posting clarification questions, and resuming after a human response are not implemented yet. Review reports are advisory and do not authorize merging.
+The [inspiration catalogue](inspiration.md) records Go harnesses, design ideas,
+and tradeoffs worth revisiting.
+
+The name comes from *via ferrata*: a supported route through difficult terrain.
+The aim is useful progress toward the human's intended software, with explicit
+resource limits and evidence that remains tied to the code actually reviewed.
+
+## What works today
+
+Ferretta is experimental, written in pure Go, and builds for macOS/Linux on
+amd64/arm64 with CGO disabled.
+
+| Capability | Current behavior |
+| --- | --- |
+| Local PR review | A bounded Ollama tool loop reads exact commits, executes trusted checks in a detached worktree, and produces an advisory report. |
+| Review provenance | Records head/base commits, policy hash, requested model/thinking settings, and provider-reported details when available. |
+| GitHub identity | Uses a dedicated GitHub App installation. Fetch tokens are read-only; proposal posting uses separate repository-scoped comment-write tokens. |
+| Setup | `init` discovers local model metadata and creates an Ollama policy; `doctor` checks readiness. Downloads and inference are explicit, separate actions. |
+| Intent inspection | Parses and inspects existing proposal/correction/confirmation comments. Proposal sessions retain authenticated human correction/confirmation evidence. |
+| Background service | Intake-only polling, or explicit `service watch` for one PR with automatic review and human-reply handling. |
+| Automated scorecard | A separate read-only judge grades worker output and the oversight decision; records evidence and model/tool usage. |
+
+Reviews can produce findings, an intent question, an advisory LGTM, or an
+incomplete result when checks, context, or resource limits prevent completion.
+Reports and private session checkpoints are saved locally. Opt-in [proposal
+sessions](docs/proposals.md) post questions through the GitHub App and resume
+through explicit polling or a scoped watcher after human replies. Ferretta does not yet push repairs
+or merge PRs.
+
+The next stages are policy-selected model waves and fallbacks, fuller resource accounting,
+OpenRouter inference, and gated repairs/merging. The agreed configuration layers
+and cost/time/quality objectives are described in [configuration decisions](docs/configuration.md)
+and [architecture](arch.md); the layered TOML resolver is not implemented.
+
+The [review and scorecard guide](docs/evaluation.md) explains the implemented
+starting/verdict/scorecard flow and its limits. The [implementation plan](docs/review-evaluation.md)
+records the broader effort. Automated grades are assessments, not verified correctness.
+
+To have an agent help author a policy, point it to
+[skills/ferretta-config/SKILL.md](skills/ferretta-config/SKILL.md) in this checkout.
+The skill distinguishes supported configuration from proposed TOML examples.
+
+### Self-review checkpoint
+
+On September 29, 2026, Ferretta reviewed [PR #1](https://github.com/ericdmoore/ferretta/pull/1)
+at commit [08815c3](https://github.com/ericdmoore/ferretta/commit/08815c3e86ab596e09daf0b9b68a6411579f1eac)
+using local `gpt-oss:20b` with requested medium effort. The default 64K context
+admission check stopped the first attempt before inference; a separate policy
+with 128K context admitted the PR, retaining the ten-turn and ten-minute limits.
+
+The admitted run returned **incomplete** after ten turns: nine `run_checks` calls
+contained an unsupported `cmd` argument and were rejected. The tenth call was
+valid and the configured `make check` passed, but the model had no remaining turn
+to submit a verdict. This run establishes authenticated fetch, isolated check
+execution, and bounded termination; it supplies no LGTM. Improving invalid-tool-call
+recovery and detecting repeated lack of progress are the next review-loop work.
+
+Follow-up attempts raised the allowance to 100 model turns with the same model,
+medium effort, 128K context, and ten-minute timeout. They remained **incomplete**:
+one received HTTP 500 from Ollama, another exhausted the 4,096-token output
+allowance in a single response, and a retry with 16,384 output tokens stopped at
+the conservative context admission bound after three replies. None reached the
+100-turn ceiling or produced a verdict. New setup policies now allow 100 turns;
+`init --max-turns N` accepts 1–200. More turns do not remove independent output,
+context, and time limits; conversation compaction remains future work. Proposal-only resumption was added
+subsequently; general interrupted-model replay remains unsupported.
+
+On September 30, the paged tools and provider-measured context prefix allowed a
+local review to complete 19 model replies, pass the configured checks, and call
+`request_intent_confirmation`. Its last reported prompt was about 31K tokens.
+The result was a **local draft question**, not LGTM or a posted comment. Its
+wording referred to a missing “change above”; the prompt now explicitly requires
+self-contained intent questions and directs concrete bugs to findings. This
+validates tool execution, not the quality of every model-generated proposal.
+
+A later [live comparison](docs/review-experiments.md) exposed the reviewer asking
+the human to choose its verdict. Clearer finalization guidance yielded an advisory
+LGTM on retry, but evidence coverage, tradeoff explanations, and search ergonomics
+still need work. Successful completion alone does not establish review quality.
+
+### Website and installation
+
+The Hugo site targets **[ferretta.cc](https://ferretta.cc/)** and serves the root
+`install.sh` for macOS/Linux on amd64/arm64. It installs checksum-verified GitHub
+release binaries and offers optional component setup. Public installation needs
+the site deployed over HTTPS and a published release; draft releases do not qualify.
+See [site development and launch](docs/site.md) for preview, Pages/DNS setup, and
+release prerequisites.
+
+### Get a first useful review
+
+With Go 1.26.5 and Make installed, start with a labeled example that needs no
+credentials or model:
+
+```sh
+make build
+bin/ferretta demo
+```
+
+Then use `init`, `auth github --setup`, and `doctor` to prepare a small, trusted PR. The
+[getting-started guide](docs/getting-started.md) covers a local Qwen 4B path,
+an explicit two-turn model test, and your first advisory review. Setup performs
+metadata discovery only; model downloads and inference are separate actions.
+
+### Background service
+
+```sh
+bin/ferretta service run --repo ericdmoore/ferretta --state /absolute/private/state
+bin/ferretta service status --state /absolute/private/state
+```
+
+The service polls through the configured GitHub App and remembers exact PR
+revisions across restarts. `service run` is intake-only: no inference, PR code
+execution or GitHub writes. Use the explicit [scoped watcher](docs/evaluation.md)
+to enable automatic reviews and scorecards for one PR. [Boot service templates and operation](docs/service.md)
+cover macOS LaunchDaemon and Linux systemd deployment.
+
+The agreed configuration hierarchy and `cost`/`time`/`quality` presets are recorded
+in [configuration decisions](docs/configuration.md). The layered TOML resolver and
+objective selector are not implemented yet. [Architecture](arch.md) records the
+service lifecycle, credential boundary and planned execution/recovery rules.
 
 ### Try the CLI
 
@@ -22,15 +139,31 @@ printf 'PROPOSED-PureGo-v1:: Build with CGO disabled.\n' | bin/ferretta intent p
 bin/ferretta intent inspect --repo owner/repo --pr 123 --humans human-login --agents agent-login
 ```
 
-`intent parse` reads Markdown from standard input and emits JSON. `intent inspect` reads GitHub's PR conversation comments, checks the proposal/correction/confirmation sequence, and emits a JSON report with the repository, PR, source comment links, authors, and content hashes. Supply `GITHUB_TOKEN` in the environment for private repositories or authenticated API limits. The intent commands do not invoke a model. No current command writes to GitHub.
+`intent parse` reads Markdown from standard input and emits JSON. `intent inspect` reads GitHub's PR conversation comments, checks the proposal/correction/confirmation sequence, and emits a JSON report with the repository, PR, source comment links, authors, and content hashes. Configure the dedicated [GitHub App connection](docs/github-app-auth.md) for API access; personal tokens and the `gh` login are not used by the CLI. The intent commands do not invoke a model or write to GitHub. Proposal sessions and the scoped watcher can publish through the App.
 
 Human and agent logins are explicit, disjoint allowlists, matched without regard to case against GitHub-reported authors. A GitHub bot cannot act as a human. Topics are case-sensitive. Markers must start at column one and include a positive version suffix, beginning with `v1`; fenced and quoted examples are ignored. A correction must be followed by a proposal at the next version before confirmation. Choice selections remain in the confirmation body; the CLI does not infer their meaning from prose.
 
 Reports describe the **current comment snapshot**, not a durable historical agreement or authorization to merge. Edited protocol comments produce findings because the original wording cannot be recovered from this API response. Any finding makes `valid` false and returns exit code 1. An exit code of 0 means the observed sequence is valid; it does not mean all topics are confirmed. Deleted comments, changes during pagination, durable evidence storage, and explicit replacement of confirmed decisions still need dedicated handling. Inline code-review comments and PR descriptions are outside this first slice.
 
+### GitHub authentication
+
+Ferretta uses its own GitHub App installation identity for PR metadata, comments,
+and Git fetches. Configure its client ID, installation ID, and private-key file
+in machine-level `ferretta/github.json`, outside this repository. See the
+[registration and configuration guide](docs/github-app-auth.md).
+
+```sh
+bin/ferretta auth github --repo ericdmoore/ferretta
+```
+
+This verifies access and prints the bot identity without inference or PR writes.
+There is no personal-login fallback, and configuring authentication does not start
+a watcher. Checks still execute as the local OS user; the worktree and environment
+filter are not a security sandbox.
+
 ### Review a PR with a local model
 
-The initial review adapter uses Ollama on a loopback endpoint. It requires installed Git and an authenticated GitHub CLI (`gh`), plus a local model advertising tool-use and thinking support. The checked-in `.ferretta/review.json` selects the installed `gpt-oss:20b` model at medium effort with explicit turn/token/time limits. Change that trusted policy to match your machine; this command does not download a model or fall back to hosted inference.
+The initial review adapter uses Ollama on a loopback endpoint. It requires installed Git, a configured [GitHub App installation](docs/github-app-auth.md), and a local model advertising tool-use and thinking support. The checked-in `.ferretta/review.json` selects the installed `gpt-oss:20b` model at medium effort with explicit turn/token/time limits. Change that trusted policy to match your machine; this command does not download a model or fall back to hosted inference.
 
 ```sh
 make build
@@ -39,9 +172,13 @@ bin/ferretta review --repo ericdmoore/ferretta --pr 1
 
 Use the actual open, non-draft PR number. Run from a checkout whose `origin` matches that repository. The command fetches exact head/base commits, creates a temporary detached worktree, and gives the model tools to read files, list files, run the policy's checks, and submit a verdict. The first adapter executes the configured checks directly in that worktree, so use a policy and PR code you trust to execute locally; the worktree is isolation from your checkout, not an operating-system sandbox.
 
-Exit code 0 means an advisory LGTM whose configured checks passed; code 2 means changes, clarification, or incomplete review; code 1 means a setup/output failure. The PR head and base are checked again before returning. Private session checkpoints and a report are written under `.ferretta/runs/` (ignored by Git). The public report retains requested model/effort and observed model/token usage; effective effort stays unknown unless reported by the provider. Session checkpoints preserve model continuation data and are not uploaded.
+The [review tool registry](docs/review-tools.md) also provides bounded literal or
+regex search against the exact commit. Invalid calls receive structured recovery
+guidance with available tools, input schemas, and valid suggestions.
 
-This first review command starts a new bounded attempt on each invocation. Checkpoint resumption and automatic PR/comment notifications are future work. It reviews the PR title/body, diff, and requested source files; confirmed intent from comment inspection is not yet integrated into the model session. Diff/tool-result size limits produce incomplete reviews rather than silently truncating evidence.
+Exit code 0 means an advisory LGTM whose configured checks passed; code 2 means changes, clarification, or incomplete review; code 1 means a setup/output failure. The PR head and base are checked again before returning. Private session checkpoints and a report are written under `.ferretta/runs/` (ignored by Git). Terminal output defaults to readable text; use `--format json` for scripts. The public report retains requested model/effort and observed model/token usage; effective effort stays unknown unless reported by the provider. Session checkpoints preserve model continuation data and are not uploaded.
+
+Ordinary review invocations start new attempts. `--publish-proposals --humans YOUR_LOGIN` enables durable proposal posting, and `--resume PATH` polls for human replies and continues the saved conversation. Reviews use PR metadata, a diff summary, and paged diff/source tools. Automatic notifications and general interrupted-model replay remain future work. See [proposal sessions](docs/proposals.md).
 
 ### Development
 
@@ -202,7 +339,7 @@ Every finding and PROPOSED comment links back to its originating attempt. A fall
 
 PR submission starts a review job. Relevant later events, including new commits and human clarification replies, wake that same job. The CLI needs a listening mode or an external invoker delivering events; the current one-shot inspection command does not receive notifications.
 
-Notification delivery is an adapter concern. Whether the local deployment uses polling, a webhook receiver, or a relay remains an implementation choice. The core decides whether a delivered event advances a job. Duplicate notifications must not repeat model spending or post duplicate clarification comments. A reply is correlated using the repository, PR, topic, and proposal version, then checked against the configured human identities.
+Notification delivery is an adapter concern. The first local service uses polling for open PR revisions; comment polling and optional webhook/relay adapters remain future work. The core decides whether a delivered event advances a job. Duplicate notifications must not repeat model spending or post duplicate clarification comments. A reply is correlated using the repository, PR, topic, and proposal version, then checked against the configured human identities.
 
 While awaiting a human answer, persist the job, pending question, and review provenance so execution can resume after a restart. Recheck the PR revision on resumption; evidence from an older revision does not authorize newly pushed code.
 

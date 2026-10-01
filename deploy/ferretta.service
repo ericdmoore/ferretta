@@ -1,0 +1,25 @@
+[Unit]
+Description=Ferretta PR intake
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=ferretta
+Group=ferretta
+StateDirectory=ferretta
+StateDirectoryMode=0700
+UMask=0077
+Environment=FERRETTA_GITHUB_CONFIG=/etc/ferretta/github.json
+# Edit the repository list before installing. Repeat --repo for additional repos.
+ExecStart=/usr/local/bin/ferretta service run --state /var/lib/ferretta --repo ericdmoore/ferretta
+Restart=on-failure
+RestartSec=15
+TimeoutStopSec=30
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

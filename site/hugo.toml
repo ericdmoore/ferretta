@@ -1,0 +1,28 @@
+baseURL = 'https://ferretta.cc/'
+languageCode = 'en-us'
+title = 'Ferretta'
+enableRobotsTXT = true
+disableKinds = ['taxonomy', 'term']
+
+[params]
+description = 'A local-first review harness for code, intent, and the tradeoffs between them.'
+
+[markup.highlight]
+noClasses = false
+
+[module]
+[[module.mounts]]
+source = 'content'
+target = 'content'
+[[module.mounts]]
+source = 'static'
+target = 'static'
+[[module.mounts]]
+source = '../install.sh'
+target = 'static/install.sh'
+[[module.mounts]]
+source = '../docs'
+target = 'assets/repo-docs'
+[[module.mounts]]
+source = '../arch.md'
+target = 'assets/repo-docs/arch.md'

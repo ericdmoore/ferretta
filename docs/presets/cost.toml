@@ -1,0 +1,10 @@
+# DESIGN DRAFT: not accepted by the current CLI.
+# Built-in preference preset; does not grant routes, spending, or tools.
+schema_version = 1
+objective = "cost"
+
+[routing]
+prefer = "lowest_incremental_cost"
+
+[planning]
+strategy = "serial_then_escalate"
