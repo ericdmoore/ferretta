@@ -282,11 +282,11 @@ func TestChecksProgressIsBoundedAndPublic(t *testing.T) {
 	job := &workflowJob{Repository: "o/r", PR: 1, AppID: 7, Publication: "checks"}
 	run := &workflowRun{ID: "run", Session: managedSession{Session: Session{Report: Report{PR: pr()}}}}
 	save := func() error { return nil }
-	events := []UsageEvent{{Kind: "model", Operation: "review", Outcome: "pending"}, {Kind: "tool", Operation: "secret tool arguments", Outcome: "failed"}}
+	events := []UsageEvent{{Kind: "model", Operation: "review", Outcome: "pending"}, {Kind: "tool", Operation: "secret tool arguments", Outcome: "failed"}, {Kind: "tool", Operation: "read_file", Outcome: "returned"}}
 	if err := c.publishProgress(context.Background(), job, run, "review", "Plan", events, save); err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(log.String(), "secret") || !strings.Contains(log.String(), "awaiting response") {
+	if strings.Contains(log.String(), "secret") || !strings.Contains(log.String(), "awaiting response") || !strings.Contains(log.String(), "read_file: returned") {
 		t.Fatal(log.String())
 	}
 	before := len(api.writes)

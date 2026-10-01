@@ -165,6 +165,8 @@ func progressText(events []UsageEvent) string {
 		state := "completed"
 		if event.Outcome == "pending" {
 			state = "awaiting response"
+		} else if event.Outcome == "returned" {
+			state = "returned" // Existing tool accounting does not classify success.
 		} else if event.Outcome != "completed" {
 			state = "failed or incomplete"
 		}
