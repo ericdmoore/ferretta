@@ -94,6 +94,22 @@ func TestInspectCLI(t *testing.T) {
 
 type brokenIO struct{}
 
+type fakeReview struct{ args []string }
+
+func (r *fakeReview) Run(_ context.Context, args []string, _, _ io.Writer) int {
+	r.args = args
+	return 2
+}
+func TestReviewDispatch(t *testing.T) {
+	r := &fakeReview{}
+	if code := RunWithReviewer(context.Background(), []string{"review", "--pr", "1"}, nil, io.Discard, io.Discard, nil, r); code != 2 || len(r.args) != 2 {
+		t.Fatal("review dispatch lost arguments or outcome")
+	}
+	if code := Run(context.Background(), []string{"review"}, nil, io.Discard, io.Discard, nil); code != 1 {
+		t.Fatal("missing reviewer accepted")
+	}
+}
+
 func (brokenIO) Read([]byte) (int, error)  { return 0, errors.New("read failed") }
 func (brokenIO) Write([]byte) (int, error) { return 0, errors.New("write failed") }
 
@@ -104,6 +120,7 @@ func TestInvalidCLI(t *testing.T) {
 		{"intent", "inspect", "--pr", "no"},
 		{"intent", "inspect", "--repo", "owner/repo", "--pr", "7"},
 		{"intent", "inspect", "--repo", "owner/repo", "--pr", "7", "extra"},
+		{"intent", "inspect", "--repo", "owner/repo", "--pr", "7", "--humans", "same-account", "--agents", "SAME-ACCOUNT"},
 	} {
 		client := &fakeClient{}
 		if code := Run(context.Background(), args, nil, io.Discard, io.Discard, client); code == 0 || client.calls != 0 {

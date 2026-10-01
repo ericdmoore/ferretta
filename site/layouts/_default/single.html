@@ -1,0 +1,6 @@
+{{ define "main" }}
+<main id="main" class="wrap docs-layout">
+<aside class="docs-nav" aria-label="Documentation navigation"><p class="eyebrow">Field guide</p><nav>{{ range (site.GetPage "docs").Pages.ByWeight }}<a{{ if eq $.RelPermalink .RelPermalink }} aria-current="page"{{ end }} href="{{ .RelPermalink }}">{{ .Title }}</a>{{ end }}</nav><a class="source-link" href="https://github.com/ericdmoore/ferretta">View the source ↗</a></aside>
+<article class="prose"><p class="eyebrow">Ferretta / Documentation</p><h1>{{ .Title }}</h1>{{ with .Description }}<p class="doc-lede">{{ . }}</p>{{ end }}{{ .Content }}</article>
+</main>
+{{ end }}

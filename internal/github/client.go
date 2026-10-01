@@ -1,4 +1,5 @@
-// Package github reads GitHub evidence. It never posts or modifies comments.
+// Package github reads GitHub evidence. The App adapter separately supports
+// explicit proposal comment creation; the read client never mutates comments.
 package github
 
 import (
@@ -17,9 +18,10 @@ type Doer interface {
 }
 
 type Client struct {
-	HTTP    Doer
-	BaseURL string
-	Token   string
+	HTTP        Doer
+	BaseURL     string
+	Token       string
+	TokenSource func(context.Context) (string, error)
 }
 
 type Comment struct {
@@ -45,9 +47,17 @@ func (c Client) get(ctx context.Context, path string, result any) error {
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", "ferretta")
-	if c.Token != "" {
-		req.Header.Set("Authorization", "Bearer "+c.Token)
+	token := c.Token
+	if c.TokenSource != nil {
+		token, err = c.TokenSource(ctx)
+		if err != nil {
+			return err
+		}
 	}
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
 		return fmt.Errorf("GitHub request: %w", err)

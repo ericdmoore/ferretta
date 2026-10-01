@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.ferretta.daemon</string>
+  <key>UserName</key><string>_ferretta</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/libexec/ferretta</string>
+    <string>service</string><string>run</string>
+    <string>--state</string><string>/var/db/ferretta</string>
+    <string>--repo</string><string>ericdmoore/ferretta</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict><key>FERRETTA_GITHUB_CONFIG</key><string>/usr/local/etc/ferretta/github.json</string></dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>15</integer>
+  <key>Umask</key><integer>63</integer>
+  <key>StandardOutPath</key><string>/var/log/ferretta.log</string>
+  <key>StandardErrorPath</key><string>/var/log/ferretta.log</string>
+</dict>
+</plist>

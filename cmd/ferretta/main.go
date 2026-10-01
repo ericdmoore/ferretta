@@ -2,20 +2,23 @@ package main
 
 import (
 	"context"
-	"net/http"
+	"io"
 	"os"
 	"os/signal"
-	"time"
+	"syscall"
 
 	"github.com/ericdmoore/ferretta/internal/cli"
 	"github.com/ericdmoore/ferretta/internal/github"
+	"github.com/ericdmoore/ferretta/internal/review"
 )
 
 func main() {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	os.Exit(run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
+}
+
+func run(args []string, input io.Reader, output, stderr io.Writer) int {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
-	defer cancel()
-	client := github.Client{HTTP: &http.Client{Timeout: 15 * time.Second}, Token: os.Getenv("GITHUB_TOKEN")}
-	os.Exit(cli.Run(ctx, os.Args[1:], os.Stdin, os.Stdout, os.Stderr, client))
+	client := &github.Connection{Load: github.LoadDefaultApp}
+	return cli.RunWithReviewer(ctx, args, input, output, stderr, client, review.NewCLI(client))
 }

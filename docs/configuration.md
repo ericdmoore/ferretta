@@ -1,8 +1,214 @@
-# Configuration specification
+# Configuration decisions and implementation boundary
 
-> Proposed design. Configuration and model execution are not implemented by the current CLI. This document describes a proposed addition to the harness specification; it is not a confirmed intent record or authorization to merge. “Amendment” here refers to the specification, not a new intent-protocol marker or amendment semantics for confirmed decisions.
+For agent-assisted authoring, use the repository's
+[Ferretta configuration skill](../skills/ferretta-config/SKILL.md). It guides
+runnable policy edits and clearly labeled design drafts; it does not implement
+the proposed loader or workflow syntax.
+
+## Agreed target
+
+The effective policy resolves field by field:
+
+| Priority | Source | Authority |
+| --- | --- | --- |
+| 1 | Authorized per-PR settings | Scoped to a PR; spending/permission increases require an allowlisted human |
+| 2 | Root `ferretta.toml` from a trusted repository revision | Portable repository policy |
+| 3 | CLI user/service profile | Personal or installation defaults, optionally set through `init` |
+| 4 | Built-in system defaults | Usable defaults, with `cost` as the primary objective |
+
+Absent fields inherit; explicit values replace. Lists replace as a unit. Invalid
+configuration fails visibly instead of falling through to a more permissive
+layer. Show the effective settings with their sources, and bind that result to
+each review. A policy change submitted in a PR is evidence under review, not
+authority to grant that PR more money or tool access.
+
+No root file is required for default policy. Connections, repository watch lists,
+credential references and state/workspace paths belong to operator configuration,
+not the PR override plane. Explicit CLI objective overrides affect that invocation
+within existing permissions. A background service uses its configured profile,
+not the defaults of whoever happens to log in to the machine.
+
+## Objectives
+
+Draft [TOML presets](presets/README.md) give `cost`, `time`, and `quality` a
+shared proposed structure, with separate routing and planning preferences.
+They are design examples, not configuration accepted by the current CLI.
+The separate [workflow syntax comparison](workflow-syntax.md) records both
+dependency stages and ordered waves without selecting either format.
+
+The [scorecard prototype](evaluation.md) accepts separate reviewer and judge JSON
+policy files with independent allowances. Its role rubric is versioned in code.
+The [broader plan](review-evaluation.md) includes future configurable rubrics and
+publication settings; it does not settle the TOML schema.
+
+| Preset | Primary optimization | Unchanged requirements |
+| --- | --- | --- |
+| `cost` (default) | Minimize additional spending | Capabilities, authorized routes, hard limits and acceptance gates |
+| `time` | Minimize time to an acceptable result | Same |
+| `quality` | Seek stronger review evidence within allowances | Same |
+
+The eventual UI makes switching easy, for example `ferretta config set objective
+quality` or `ferretta review --objective time`. **These commands/flags are not
+implemented yet.** Startup should identify the effective objective, its source,
+and how to change it. Plans follow the objective and resources; advanced policies
+may specify model waves explicitly. A preset cannot silently opt into a paid
+provider or weaken the definition of LGTM.
+
+## Sharing configuration: public import, local ownership
+
+**Agreed design; not implemented.** Import is a CLI authoring operation that
+produces a self-contained, editable local `ferretta.toml`. Normal configuration
+loading reads local files and does not fetch upstream policy. We are not adopting
+runtime URL inheritance through an `extends` field.
+
+Proposed command:
+
+```sh
+ferretta config import https://github.com/owner/repo/blob/main/ferretta.toml
+```
+
+Accept public GitHub file links and public raw HTTPS file URLs. The import adapter
+retrieves content anonymously; it does not use the GitHub App, personal tokens,
+browser sessions, or `gh` credentials. Private-repository URL imports are
+intentionally unsupported. Users with private-source access can manually copy
+the complete configuration into their project using their own tools. No import
+token prompt, OAuth flow, or GitHub CLI dependency is needed. Failure to retrieve
+a public file must not trigger an authentication fallback or assume that a 404
+proves a repository is private.
+
+The importer validates the schema and materializes configuration into one local
+file, preserving useful tables and arrays. Any supported inheritance resolution
+belongs at import time; its syntax remains undecided. Record the public source
+URL, exact GitHub commit when applicable, source content hash, and import time as
+provenance comments. Subsequent edits belong to the local project; provenance
+describes the imported source, not the integrity of later local changes.
+
+Preview the result before writing. Preserve an existing file unless the user
+explicitly chooses replacement, showing the differences first. Upstream changes
+never silently update an imported policy. Fetching or validating a policy does
+not execute its checks, start inference, establish model connections, or grant
+spending/write permissions. Report unresolved local setup requirements.
+
+This public-only decision supersedes the earlier private-import/token-prompt
+proposal. Service reviews, comments, and repairs continue to use the dedicated
+GitHub App identity under their existing authorization rules.
+
+## Implemented surfaces
+
+- GitHub App connection: strict machine JSON in `ferretta/github.json` beneath
+  `os.UserConfigDir()`, or the absolute path in `FERRETTA_GITHUB_CONFIG`. Contains
+  client/installation IDs and an absolute private-key path, never the key itself.
+- Onboarding: `init` discovers metadata and creates a new Ollama policy; `doctor`
+  checks readiness without inference/check execution; `demo` shows fictional
+  reports. `model test` explicitly runs two bounded inference turns.
+- Manual review: explicit trusted `.ferretta/review.json`, selected with
+  `review --policy`. The current adapter is Ollama only.
+- Evaluation: `eval --run PATH --policy PATH`, or `review --eval-policy PATH`.
+  The judge accepts Ollama route/limit fields but rejects executable checks.
+- Scoped dispatch: `service watch --repo owner/repo --pr N --state PATH
+  --review-policy PATH --judge-policy PATH --humans login`. See the
+  [operating guide](evaluation.md) for allowances and recovery.
+- Service intake: `service run --repo owner/repo` (repeatable), `--state` (absolute
+  private directory), `--interval` (default `1m`, range `5s`–`24h`), and `--once`.
+  Default state is `ferretta/state` beneath `os.UserConfigDir()`; boot service
+  definitions always specify a service-owned absolute path.
+- Inspection: `service status --state /absolute/path` reads existing SQLite state
+  without credentials, network calls, inference, or starting another owner.
+
+No TOML loader, layered resolver, objective selector, persistent watch-list editor,
+subscription auth or encrypted secret database is shipped in this slice. These
+decisions establish the contract; the complete TOML schema and JSON migration
+will follow implementation of those policy surfaces. Existing JSON remains
+explicit and is never silently overwritten or interpreted as TOML.
+
+## Current Ollama JSON policy
+
+`init` writes the selected model/endpoint and a required check after confirmation.
+It does not yet save layered user defaults or TOML. Existing files are preserved.
+
+| Field | Meaning |
+| --- | --- |
+| `provider`, `endpoint`, `model` | Explicit `ollama` route at an HTTP loopback endpoint and installed model ID |
+| `thinking` or `effort` | Exactly one: `thinking: "enabled"` for a verified boolean control, `thinking: "provider_default"` to explicitly accept the model's default, or `effort: "low"`, `"medium"`, `"high"` for verified named controls |
+| `context_tokens` | At least 8,192, bounded by provider-reported model capacity; setup defaults to 16,384; omitted legacy field remains 65,536 |
+| `max_turns` | Nonnegative; 0 disables the turn ceiling; setup uses 100; counts model responses across resumed segments |
+| `max_tokens_per_turn` | At least 256; setup uses 4,096; must leave at least 2,048 tokens of input room in context |
+| `timeout_seconds` | Nonnegative seconds; 0 disables the deadline; setup uses 600; proposal sessions exclude human waiting |
+| `checks` | Nonempty list of command argument arrays; trusted operator-selected commands |
+
+Unknown fields, contradictory thinking controls and invalid limits are rejected.
+Metadata must establish tools, thinking capability and sufficient context capacity.
+Explicitly enabled thinking and named effort also require support for the requested
+control. Older Ollama versions lacking control metadata have explicit compatibility
+for GPT-OSS named effort and Qwen3 boolean thinking; other unknown controls are
+rejected. Remote-model metadata is rejected by the local-only route.
+Requested settings remain separate from provider-reported execution details.
+
+### Models with missing thinking-control metadata
+
+Some installed models advertise tools and thinking but omit the separate
+`thinking.values` controls. Alpaca's `qwen3.8:27b-mlx` is one such model. Select
+`thinking: "provider_default"` to explicitly accept the provider's default instead
+of requesting an unverified control. Ferretta sends `think: null`, following
+[Ollama's API semantics](https://docs.ollama.com/capabilities/thinking).
+Whether thinking is enabled, and its effective effort, remain unknown. This is
+different from `thinking: "enabled"`; a model default may change when the provider
+or model changes. Policies that require enabled thinking should keep that setting
+and require suitable metadata or an established adapter compatibility rule.
+
+The default option does not supply missing tool/thinking capabilities, invent a
+context limit, permit a remote route, or override explicit non-thinking control
+metadata such as `values: [false]`. `init --thinking auto` never silently selects
+it. An explicit choice is required; review and judge policies both support it.
+
+For an already installed Qwen model, create a separate policy:
+
+```sh
+bin/ferretta init --yes --model qwen3.8:27b-mlx \
+  --thinking provider_default --context 131072 \
+  --max-turns 0 --max-output-tokens 16384 --timeout 600 \
+  --check '["make","check"]' --policy .ferretta/qwen27-review.json
+bin/ferretta doctor --repo owner/repo --policy .ferretta/qwen27-review.json
+bin/ferretta model test --policy .ferretta/qwen27-review.json
+```
+
+The model name is a local installation choice, not a portable download promise.
+Setup preserves existing files and performs metadata checks only. The last command
+explicitly runs two inference turns with inert tool results. Success establishes
+tool continuation, not reasoning effort, review quality, or memory requirements
+for every workload. This example has unlimited turns within a ten-minute active
+deadline; context and output allowances remain enforced. Model weights and context
+both consume memory, so select context capacity for the intended workload.
+
+### Context accounting
+
+The context admission check uses Ollama-reported prompt tokens for the unchanged
+message prefix when available, plus encoded bytes for newly appended messages,
+a framing reserve and output allowance. Before a usage observation, the complete
+input is conservatively bounded by bytes. It is not an exact local tokenizer.
+
+
+For local exploration, this repository's policy selects `gpt-oss:20b`, medium
+requested effort, 131,072 context tokens, 16,384 output tokens per reply, and no
+turn/deadline ceiling. These are explicit repository choices; `init` still ships
+bounded defaults. Cancellation remains available. Context capacity, required
+checks, human identity and valid tool arguments remain enforced.
+
+Setup exposes `--max-turns`, `--max-output-tokens`, `--timeout`, and `--context`.
+For example, `--max-turns 0 --timeout 0 --context 131072
+--max-output-tokens 16384` creates a more permissive local policy. Existing
+policies are never overwritten. Provider prompt counts anchor context admission; unseen additions retain a
+conservative byte bound. Paged evidence reduces input growth;
+automatic compaction is not implemented.
+
+Proposal posting is an operator-selected effect: `review --publish-proposals
+--humans login1,login2`. The allowlist is pinned in the private SQLite session.
+`review --resume /absolute/session/path` polls for human replies using the same
+repository, PR, policy and GitHub App. See [proposal sessions](proposals.md).
 
 ## Challenger amendment: constrained model exploration
+
+> Proposed design. Challenger exploration and its configuration are not implemented. This section describes a proposed addition to the harness specification; it is not a confirmed intent record or authorization to merge. “Amendment” here refers to the specification, not a new intent-protocol marker or amendment semantics for confirmed decisions.
 
 Ferretta should learn which models perform well on a particular repository while respecting the repository's budget, quality, and execution constraints. Broad benchmarks can inform candidate selection, but repository-specific evidence should determine whether a challenger should replace an incumbent.
 
