@@ -261,7 +261,7 @@ help reveal confidently missed defects. Do not equate model price, token count,
 or effort setting with demonstrated quality. No fixed budget split is selected.
 
 Suggested starting judge settings, pending selection/calibration: medium effort
-where supported, five minutes active compute, no turn ceiling, read-only tools,
+where supported, ten minutes active compute, no turn ceiling, read-only tools,
 and no paid route. The earlier same-model example used local gpt-oss:20b with
 131,072 context and 16,384 generated tokens per turn. These are prototype proposals,
 not universal defaults, a change to current policy, or proof of judging quality.
