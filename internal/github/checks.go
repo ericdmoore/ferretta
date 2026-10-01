@@ -65,7 +65,7 @@ func (a *App) WriteCheck(ctx context.Context, repo string, id int64, input Check
 	}
 	token, err := a.scopedToken(ctx, repo, "checks", "write")
 	if err != nil {
-		return CheckRun{}, fmt.Errorf("%w: %v", ErrCheckNotDispatched, err)
+		return CheckRun{}, fmt.Errorf("%w: obtain Checks write credentials (the installation must approve Checks read/write): %v", ErrCheckNotDispatched, err)
 	}
 	method, path := "POST", fmt.Sprintf("/repos/%s/check-runs", repo)
 	if id > 0 {
