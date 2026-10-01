@@ -56,10 +56,22 @@ func PrintReport(output io.Writer, report Report, format string) error {
 	}
 	tokens := 0
 	known := len(report.Attempts) > 0
+	models := []string{}
+	counts := map[string]int{}
 	for _, a := range report.Attempts {
 		known = known && a.PromptTokens > 0 && a.OutputTokens > 0
 		tokens += a.PromptTokens + a.OutputTokens
-		fmt.Fprintf(&b, "Observed model: %s\n", plain(a.Model))
+		model := plain(a.Model)
+		if strings.TrimSpace(model) == "" {
+			model = "not reported"
+		}
+		if counts[model] == 0 {
+			models = append(models, model)
+		}
+		counts[model]++
+	}
+	for _, model := range models {
+		fmt.Fprintf(&b, "Observed model: %s; replies: %d\n", model, counts[model])
 	}
 	if known {
 		fmt.Fprintf(&b, "Reported input + output tokens: %d\n", tokens)

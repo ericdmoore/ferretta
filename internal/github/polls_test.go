@@ -20,10 +20,10 @@ func TestOpenPullRequestPagination(t *testing.T) {
 		if r.URL.Query().Get("page") == "1" {
 			return response(200, batch), nil
 		}
-		return response(200, `[{"number":101,"head":{"sha":"head"},"base":{"sha":"base"},"state":"open","draft":true}]`), nil
+		return response(200, `[{"number":101,"head":{"sha":"head","repo":{"full_name":"o/r"}},"user":{"login":"human"},"base":{"sha":"base"},"state":"open","draft":true}]`), nil
 	})}
 	prs, err := c.OpenPullRequests(ctx, "o/r")
-	if err != nil || len(prs) != 101 || prs[100].Head != "head" || prs[100].Base != "base" || prs[100].State != "OPEN" || !prs[100].Draft {
+	if err != nil || len(prs) != 101 || prs[100].Head != "head" || prs[100].Base != "base" || prs[100].State != "OPEN" || !prs[100].Draft || prs[100].Author != "human" || prs[100].HeadRepository != "o/r" {
 		t.Fatal(prs, err)
 	}
 	for _, repo := range []string{"bad", "a/b?c"} {

@@ -198,6 +198,10 @@ func TestPrivateAndCompatibleState(t *testing.T) {
 	if err := os.Mkdir(dir, 0755); err != nil {
 		t.Fatal(err)
 	}
+	// Explicitly create the unsafe fixture even under a service's private umask.
+	if err := os.Chmod(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := OpenStore(dir); err == nil {
 		t.Fatal("public state directory accepted")
 	}

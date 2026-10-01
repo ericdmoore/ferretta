@@ -75,4 +75,12 @@ func TestNetworkApp(t *testing.T) {
 			t.Fatal("missing authenticated comment identity")
 		}
 	}
+	checks, err := a.CheckRuns(ctx, repo, pr.Head)
+	if err != nil || len(checks) == 0 {
+		t.Fatal("fixture requires check runs and Checks read permission", err)
+	}
+	check, err := a.CheckRun(ctx, repo, checks[0].ID)
+	if err != nil || check.ID != checks[0].ID || check.Head != pr.Head || check.App.ID <= 0 || check.URL == "" {
+		t.Fatal("missing check identity/revision", err)
+	}
 }

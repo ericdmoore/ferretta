@@ -4,7 +4,10 @@ Status: design and delivery plan, October 1, 2026. The first serial prototype
 is implemented; see [runnable commands and boundaries](evaluation.md). The
 remaining sections also describe future DAG, calibration and accounting work.
 The first acceptance target is a PR that Ferretta discovers, reviews, and grades,
-with three visible milestone comments: starting, verdict, and scorecard.
+with three visible milestones: starting, verdict, and scorecard. The original
+prototype used comments; the implemented watcher now defaults to review and
+evaluation Checks with checkpoint progress. `--publication comments` retains
+the original delivery mode. See [current operation](evaluation.md).
 
 ## Scope and existing foundation
 

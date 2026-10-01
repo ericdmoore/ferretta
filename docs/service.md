@@ -39,8 +39,9 @@ snapshots visible with their old timestamps. GitHub pagination is not atomic;
 future dispatch must refetch the exact revision and resolve trusted policy.
 Observation IDs do not include policy and must not be reused as review node IDs.
 
-Schema version 2 adds a private proposal-session table, migrating version 1
-transactionally while retaining intake records. The store uses the CGO-free `modernc.org/sqlite` driver. The state directory
+Schema version 2 added a private proposal-session table. Version 3 adds a durable
+retry inbox and retained delivery outcomes, migrating versions 1/2 transactionally
+without losing intake or reviews. The store uses the CGO-free `modernc.org/sqlite` driver. The state directory
 must be mode 0700, database mode 0600. WAL files are private within that directory.
 Never delete `owner.lock` while an owner runs; the kernel releases its lock on exit.
 Back up the database using a consistent SQLite backup or with the service stopped,
@@ -48,12 +49,23 @@ including any remaining WAL; copying a live database file alone is insufficient.
 
 ## Scoped automatic review
 
-The separate [`service watch` command](evaluation.md) opts into one PR, trusted
-review/judge policies and a human allowlist. It publishes starting, verdict and
-scorecard comments, and polls intent replies. It reuses this store and ownership
+The separate [`service watch` command](evaluation.md) opts into one PR or automatic
+repository pickup with `--all-prs --authors LOGIN`, trusted review/judge policies,
+and a separate human decision allowlist. Repository mode executes same-repository
+branches by allowed authors only; PRs run serially. It publishes review and evaluation
+Checks with checkpoint progress, and uses comments for intent questions/replies.
+`--publication comments` retains the original three-comment workflow and is
+required when restarting saved workflows from earlier versions.
+It reuses this store and ownership
 lock; run one owner per installation. Supplied boot templates still select intake
 only. Watch requires a matching repository checkout and permits trusted checks
 to execute PR code as the OS user; it is not an execution sandbox.
+
+Watch also supports explicit CLI retries and an optional signed webhook listener
+for GitHub's individual Check re-run control. See [retry setup and semantics](evaluation.md).
+Webhooks are queued durably while one owner serializes model work. The listener
+requires a private shared-secret file and a separately configured HTTPS forwarder;
+it does not expose an unauthenticated control endpoint or reset allowances.
 
 ## Boot installation
 

@@ -385,7 +385,9 @@ and read-only status; it does not yet implement the control socket.
 Poll GitHub first, avoiding a required public webhook endpoint. Polling open PRs
 is implemented. Proposal sessions support manual human-reply polling and
 resumption; the explicit `service watch` command adds automatic dispatch and
-reply polling for one PR with trusted reviewer/judge policy. OS ownership locks apply only to the same local state directory, not to
+reply polling for a selected PR or allowlisted same-repository PRs using
+`--all-prs --authors LOGIN`, with trusted reviewer/judge policy. Per-PR workflows
+run serially; a human wait or individual job error does not stop other PRs. OS ownership locks apply only to the same local state directory, not to
 independent stores or machines. Do not put this store on a network filesystem.
 
 Recovery must preserve spending, human waits, hard stops and uncertain external
