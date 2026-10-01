@@ -90,7 +90,7 @@ func (c CLI) advanceWorkflow(ctx context.Context, store workflowStore, repo stri
 	if err := (intent.Policy{Humans: humans, Agents: []string{identity.BotLogin}}).Validate(); err != nil {
 		return nil, err
 	}
-	key := fmt.Sprintf("workflow-v1:%s:%d", strings.ToLower(repo), pr.Number)
+	key := workflowKey(repo, pr.Number)
 	job := &workflowJob{Version: 1, Repository: repo, PR: pr.Number, Bot: identity.BotLogin, Humans: humans, ReviewPolicy: hashBytes(reviewBytes), JudgePolicy: hashBytes(judgeBytes)}
 	job.Publication, job.AppID = mode, identity.AppID
 	data, err := store.Review(ctx, key)
@@ -454,7 +454,7 @@ func startingComment(pr PR, id string, review Policy, judge EvaluationPolicy, re
 		}
 		return fmt.Sprintf("%q via %s; requested effort: %q; requested thinking: %q; effective effort: not reported.\n- Turns: %s; context: %d tokens; generation per turn: %d tokens.\n- Active-stage allowance (including setup overhead, excluding human waits): %s.\n", p.config.Model, p.config.Provider, p.config.Effort, p.config.Thinking, turns, p.config.ContextTokens, p.config.MaxTokens, deadline)
 	}
-	return fmt.Sprintf("## Ferretta has started reviewing this PR\n\nCommit: `%s`; base: `%s`; run: `%s`.\n\n### Assigned reviewer\n%s\n### Scorecard judge\n%s\nPaid routes: disabled (local-only). Repair cycles: disabled. PR-age deadline: not configured.\n\nPlan: inspect the submitted commits, investigate material issues, run trusted checks, and publish a verdict. Consequential intent questions pause for an allowlisted human. Then a separate judge session publishes worker and oversight grades. Allocation follows core policy; reaching a limit does not mean approval.\n", pr.Head, pr.Base, id, limits(review, reviewUsed), limits(judge.route, judgeUsed))
+	return fmt.Sprintf("## Ferretta has started reviewing this PR\n\nCommit: `%s`; base: `%s`; run: `%s`.\n\n### Assigned reviewer\n%s\n### Scorecard judge\n%s\nPaid routes: disabled (local-only). Repairs: not implemented; this workflow does not create commits. PR-age deadline: not configured.\n\nPlan: inspect the submitted commits, investigate material issues, run trusted checks, and publish a verdict. Consequential intent questions pause for an allowlisted human. Then a separate judge session publishes worker and oversight grades. Allocation follows core policy; reaching a limit does not mean approval.\n", pr.Head, pr.Base, id, limits(review, reviewUsed), limits(judge.route, judgeUsed))
 }
 
 func verdictComment(report Report) string {

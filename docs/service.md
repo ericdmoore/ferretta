@@ -49,8 +49,10 @@ including any remaining WAL; copying a live database file alone is insufficient.
 
 ## Scoped automatic review
 
-The separate [`service watch` command](evaluation.md) opts into one PR, trusted
-review/judge policies and a human allowlist. It publishes review and evaluation
+The separate [`service watch` command](evaluation.md) opts into one PR or automatic
+repository pickup with `--all-prs --authors LOGIN`, trusted review/judge policies,
+and a separate human decision allowlist. Repository mode executes same-repository
+branches by allowed authors only; PRs run serially. It publishes review and evaluation
 Checks with checkpoint progress, and uses comments for intent questions/replies.
 `--publication comments` retains the original three-comment workflow and is
 required when restarting saved workflows from earlier versions.

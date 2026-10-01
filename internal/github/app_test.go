@@ -115,7 +115,7 @@ func TestAppScopeRefreshAndIdentity(t *testing.T) {
 			if auth != "installation-secret" {
 				t.Fatal("wrong PR credential")
 			}
-			return response(200, `{"number":1,"head":{"sha":"abc"},"base":{"sha":"def"},"state":"open","html_url":"https://github.com/owner/repo/pull/1","title":"Review","body":"Example","draft":false}`), nil
+			return response(200, `{"number":1,"head":{"sha":"abc","repo":{"full_name":"owner/repo"}},"user":{"login":"human"},"base":{"sha":"def"},"state":"open","html_url":"https://github.com/owner/repo/pull/1","title":"Review","body":"Example","draft":false}`), nil
 		default:
 			return response(200, `[]`), nil
 		}
@@ -128,7 +128,7 @@ func TestAppScopeRefreshAndIdentity(t *testing.T) {
 	if token, err := c.Token(context.Background(), "Owner/Repo"); err != nil || token != "installation-secret" {
 		t.Fatal("case-insensitive cache", err)
 	}
-	if pr, err := c.PullRequest(context.Background(), "owner/repo", 1); err != nil || pr.Head != "abc" || pr.Base != "def" || pr.State != "OPEN" || pr.Title != "Review" {
+	if pr, err := c.PullRequest(context.Background(), "owner/repo", 1); err != nil || pr.Head != "abc" || pr.Base != "def" || pr.State != "OPEN" || pr.Title != "Review" || pr.Author != "human" || pr.HeadRepository != "owner/repo" {
 		t.Fatal(pr, err)
 	}
 	if comments, err := c.Comments(context.Background(), "owner/repo", 1); err != nil || len(comments) != 0 {

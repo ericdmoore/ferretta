@@ -1,6 +1,6 @@
 # Automatic reviews and scorecards
 
-The prototype adds an explicit `service watch` command for **one selected PR**.
+`service watch` reviews **one selected PR** or **all eligible PRs in a repository**.
 It discovers the PR through the GitHub App, creates review and evaluation Checks,
 reviews its exact commits, publishes the verdict, and runs a separate read-only
 judge session that publishes a scorecard. It polls authenticated human replies when a
@@ -59,6 +59,49 @@ dispatched. `--interval 5s` adjusts the delay after each sweep (default one minu
 outcome. A processed incomplete result is still a successful watch invocation;
 inspect the verdict and scorecard for the actual outcome.
 
+### Automatically pick up new PRs
+
+Replace `--pr 123` with `--all-prs --authors your-github-login`:
+
+```sh
+bin/ferretta service watch \
+  --repo owner/repo --all-prs --authors your-github-login,trusted-agent-login \
+  --state /absolute/private/ferretta-state \
+  --review-policy /absolute/trusted/review.json \
+  --judge-policy /absolute/trusted/judge.json \
+  --humans your-github-login
+```
+
+This continuously polls existing and newly opened PRs; no per-PR command, Actions
+runner, or webhook is needed for discovery. Ready PRs whose authors are explicitly
+allowlisted and whose head branches belong to the watched repository are admitted.
+Drafts wait until ready. Forks, unknown source repositories, and other authors are
+skipped with a log reason. Author and source repository are checked again before
+publication and before executing review work or resuming after a human reply.
+A confirmed intent record is not required to start review.
+
+`--authors` permits PR code execution; `--humans` permits intent decisions and
+Check retries. These are separate authorities. Allowlisted bot authors do not gain
+human confirmation rights. Neither allowlist is inferred from App installation
+access. Keep trusted policy files outside PR control.
+
+One local owner runs PR workflows serially. It finishes the current review and
+judge session before moving on, so long stages delay discovery of later PRs.
+Human waits and individual PR errors do not prevent other admitted PRs from
+advancing. Failed PRs are logged and revisited on the next sweep; uncertain model
+consumption still prevents redispatch. Completed revisions never spend again just
+because the watcher polls or restarts. A new head/base pair starts a new review
+with the same cumulative PR allowances. `--once` processes one snapshot and exits
+nonzero if any admitted PR could not advance; it does not keep watching.
+
+Use the **same state directory** when broadening a single-PR watcher to repository
+watching; existing job identities, policies, publications and allowances remain
+intact. Stop the previous owner first. Signed retry receipts are routed by saved
+Check ownership, never by PR order. Requests for unknown Checks or PRs outside the
+current ready/author/repository scope are durably rejected. Operator retries still
+require explicit `--pr N --once` and leave the webhook inbox for the continuous
+watcher, preserving requests for other PRs.
+
 The initial Check details name both models and settings, exact head/base commits,
 policy hashes, active allowances, and a plain-language plan. Review and evaluation
 allowances are separate and cumulative across revisions of the PR. Zero disables
@@ -88,6 +131,11 @@ Two entries appear in the PR's Checks section:
 | --- | --- |
 | `Ferretta / review` | Starts in progress; an accepted LGTM completes with success, changes required with failure, and incomplete review with action required |
 | `Ferretta / evaluation` | Queues behind review, then runs independently; a completed assessment is neutral, while an incomplete assessment needs attention and preserves the review verdict |
+
+Repairs are a planned **separate stage** that would create commits, followed by
+review of the resulting revision. They are not embedded in today's review, and
+there is no repair Check yet. The starting plan explicitly says repairs are not
+implemented; findings must currently be addressed by a human or implementation agent.
 
 The details show the assigned models, requested settings, allowances, plan, exact
 commits, and policy hashes. Recent activity is updated at saved model/tool
@@ -181,10 +229,13 @@ not require a GitHub Actions runner. See GitHub's [re-request API](https://docs.
 ## Read the scorecard
 
 Rubric `review-roles-v1` separates **worker output** from the **oversight decision**.
-Each has correctness, evidence, intent alignment, judgment, actionability, and
-communication dimensions. Scores are 0 (material failure), 1 (substantial gaps),
+The score table uses these two roles as rows, with correctness, evidence, intent
+alignment, judgment, actionability, and communication as columns. Detailed reasons
+and evidence references follow the table. Scores are 0 (material failure), 1 (substantial gaps),
 2 (adequate and supported), or 3 (strong handling of relevant subtleties).
-Missing evidence or inapplicability receives `not_assessed`, not zero.
+Missing evidence or inapplicability appears as **Not assessed**, not zero.
+The review details group observed model IDs with reply counts; raw per-turn
+provenance remains in the private saved report.
 
 The initial PR roll-up retains both roles and the revision's actual review status;
 there is no average or score threshold that grants approval. A high grade cannot
