@@ -55,6 +55,8 @@ pi Coding Agent + openRouter + vLLM
 
 > Design draft. This README describes the proposed product and architecture, not shipped functionality. Commands, APIs, and configuration below are illustrative. Ferretta targets a pure Go implementation and native executables for amd64 and arm64.
 
+The [configuration specification](docs/configuration.md) includes a proposed challenger amendment for budgeted, repository-specific model exploration and evaluation.
+
 Ferretta is an embeddable review and execution harness for agent-assisted software development. It preserves what a human asked for, records the interpretation they agreed to, and checks proposed code against that intent before it lands.
 
 A change can compile, pass tests, and still solve the wrong problem. An agent can invent requirements, introduce unnecessary infrastructure, or turn a small request into an elaborate framework. Ferretta makes those departures reviewable, with findings that connect implementation evidence to the original request.
