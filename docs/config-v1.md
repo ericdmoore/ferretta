@@ -29,7 +29,7 @@ that all orchestration ships in the first implementation slice.
 ## 2. Documents, versions, and authority
 
 The optional trusted root `ferretta.toml` contains portable policy. An operator
-profile holds routes, connections, permissions, and host settings; a service
+profile holds connections, permissions, and host settings; a service
 selects that profile independently of desktop login. Existing GitHub App
 authentication remains an operator concern.
 
@@ -82,7 +82,7 @@ updates. Loading/validating a policy does not execute it.
 | `objective` | `cost` (default), `time`, or `quality`. |
 | `routing.prefer` | `lowest_incremental_cost`, `lowest_expected_latency`, or `strongest_review_evidence`. |
 | `planning.strategy` | `serial_then_escalate`, `parallel_when_useful`, or `independent_then_synthesize`. |
-| `models.<id>` | Model requirements referencing an operator route. |
+| `models.<id>` | Explicit model name and requirements referencing an operator connection. |
 | `checks` | Trusted local commands, additional GitHub checks, formatter, protected paths. |
 | `limits` | Repository, PR, operation, and reserved allowances. |
 | `workflow.waves` | Optional explicit array of waves; replaces automatic planning. |
@@ -99,7 +99,7 @@ Without an explicit workflow, the initial planner creates one final review using
 the effective model alias `default-review`. Repair is off. Evaluation uses alias
 `default-judge` when configured, otherwise reports unavailable. Operator setup
 supplies these model definitions through `defaults.models` (section 9), including
-their route and thinking requirements. Until advanced planning exists,
+their connection, model name, and thinking requirements. Until advanced planning exists,
 all three objectives share this minimal plan and disclose that limitation.
 Missing bindings produce setup guidance without downloading models or inference.
 A zero-file repo policy is possible after operator setup; it cannot invent
@@ -112,7 +112,8 @@ the workflow; model/wave IDs are unique within their own collections.
 
 ```toml
 [models.worker]
-route = "local-oss"
+connection = "ollama"
+model = "gpt-oss:20b"
 inference = "local"
 context_tokens = 131072
 max_output_tokens = 16384
@@ -123,11 +124,39 @@ mode = "effort"
 effort = "medium"
 ```
 
-Required `route` refers to an operator binding to a connection and model ID.
-Portable policy contains no endpoints or secrets. Borrowed recipes retain aliases;
-operators deliberately bind them to available models. Explain output must show
-the actual provider/model. Route changes affect future resolved policy identity,
-not model substitution into saved sessions.
+Required `connection` names an operator connection; required `model` is the exact
+nonempty model identifier requested from that server. Model names may contain the
+provider's punctuation, such as `gpt-oss:20b` or `vendor/model-name`; the identifier
+rule for Ferretta's own IDs does not restrict them. There is no intermediate
+`routes` table. The binding is visible in one place:
+
+```text
+reviewer = "oss" -> models.oss (connection + model) -> connection endpoint
+```
+
+Portable policy contains no endpoints or secrets. A recipe can name its models
+directly while a user/service profile supplies the machine-specific connection:
+
+```toml
+# Operator profile, outside the repo policy.
+[connections.ollama]
+provider = "ollama"
+endpoint = "http://127.0.0.1:11434"
+
+# Alternative connection for an explicitly configured LiteLLM proxy.
+[connections.litellm]
+provider = "openai_compatible"
+endpoint = "http://127.0.0.1:4000"
+```
+
+The URL locates a server; it does not select a model or specify its API protocol.
+For LiteLLM, `model` is its explicitly configured public model alias. Record the
+requested alias and reported underlying model/provider separately; the alias may
+route to multiple deployments, and missing execution identity remains unknown.
+Explain must show the configured protocol, endpoint, model, and requested settings.
+Connection/model changes affect future policy identity, not substitutions into
+saved sessions. LiteLLM/compatible inference is proposed here; currently only
+Ollama inference is implemented, with compatible endpoints used for discovery.
 
 `inference` is `local` (default) or `any`. `any` permits an authorized remote route,
 not paid use by itself. A local proxy does not prove local inference. Tools,
@@ -163,6 +192,26 @@ necessarily different models. Reusing a model in separate sessions must be
 disclosed; it does not establish model diversity. Deterministic core policy
 allocates work initially. Selection chooses contributions, not allowances.
 A general model allocator and configurable grading rubrics remain deferred.
+
+### Direct values and references
+
+Use direct values where another named layer would only rename them:
+
+| Concern | Direct form | Meaning |
+| --- | --- | --- |
+| Requested model | `model = "gpt-oss:20b"` | Exact server model ID or proxy alias, beside its connection. |
+| Input revision | `input = "oss-pass.revision"` | Exact output of that earlier stage; `pr.head` is pinned at admission. |
+| Evidence | `evidence = ["oss-pass"]` | Earlier structured results, not another evidence alias registry. |
+| Check/formatter | `commands = [["make", "check"]]`, `formatter = ["make", "fmt"]` | Trusted argument arrays, not named command profiles. |
+| Protected files | `protected_paths = ["go.mod", "go.sum"]` | Repo-relative paths, not named path collections. |
+| Allowance | `limits = { compute = "15m", spend_usd = "0.30" }` | Scope-local values, not named budget profiles. |
+
+Keep named model settings when roles reuse the same complete requirements, and
+stable stage IDs where consumers/recovery need to identify results. Connections
+retain endpoints and credential references at the operator boundary. Do not add
+implicit `previous`/`latest` inputs that change meaning when stages are reordered.
+Inline per-role model objects and external prompt/rubric-file references are not
+part of this draft; add them only if a concrete authoring need justifies them.
 
 ## 5. Checks and effects
 
@@ -418,15 +467,14 @@ their separate adopted vocabulary and grant state.
 ## 9. Operator profile and host scheduling
 
 The [Alpaca profile](examples/operator-alpaca.toml) proposes the companion shape:
-`schema_version`, `connections`, `routes`, `host`, `permissions`, and `defaults`.
+`schema_version`, `connections`, `host`, `permissions`, and `defaults`.
 Operator keys are rejected in repo/PR policy.
 
 | Operator field | Contract |
 | --- | --- |
-| `connections.<id>.provider` | `ollama` or future `openrouter`; unsupported adapters are errors. |
-| `connections.<id>.endpoint` | Required local Ollama endpoint; OpenRouter uses its adapter's fixed endpoint. |
-| `connections.<id>.credential_ref` | OpenRouter credential reference, never a literal secret. Reference backend is an operator integration detail. |
-| `routes.<id>.connection`, `.model` | Required connection ID and exact requested provider model ID. |
+| `connections.<id>.provider` | `ollama`, future `openai_compatible` (e.g. LiteLLM), or future `openrouter`; unsupported adapters are errors. |
+| `connections.<id>.endpoint` | Explicit base URL for Ollama/compatible APIs. Compatible adapters append paths such as `chat/completions` to this base, preserving any configured prefix. OpenRouter uses its adapter's fixed endpoint. |
+| `connections.<id>.credential_ref` | Required for OpenRouter; optional for an authenticated compatible server. Never a literal secret. Reference backend is an operator integration detail. |
 | `host.max_parallel_models` | Positive installation-wide ceiling, default 1. |
 | `host.model_residency` | `none` (default) or `prefer_loaded`, within dependencies and fairness. |
 | `host.memory_headroom` | Optional positive integer `GiB` string; desired space for OS/tools/other apps, not an OS reservation or proof a model fits. |
@@ -439,6 +487,11 @@ Watch lists, state paths, GitHub App key references, author admission, and boot
 service setup retain their existing operator surfaces during migration. Loading
 a profile never starts a watcher. Progress/proposal posting stays subject to
 configured App/watcher authorization. Examples are inert until explicitly selected.
+
+Connections select the adapter protocol rather than guessing it from URL/port.
+Endpoint URLs must not embed credentials; use `credential_ref` where needed.
+Provider/endpoint grants and metadata still determine eligibility. A proxy on
+loopback does not establish local inference or grant paid use.
 
 The local recipe passes each model's completed revision to the next. To run
 independent candidates serially, keep each `input = "pr.head"` and use host

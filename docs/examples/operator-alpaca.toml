@@ -8,13 +8,6 @@ schema_version = 1
 provider = "ollama"
 endpoint = "http://127.0.0.1:11434"
 
-[routes.local-oss]
-connection = "ollama"
-model = "gpt-oss:20b"
-[routes.local-qwen]
-connection = "ollama"
-model = "qwen3.8:27b-mlx"
-
 [host]
 max_parallel_models = 1
 model_residency = "prefer_loaded"

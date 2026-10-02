@@ -6,30 +6,37 @@
 schema_version = 1
 objective = "quality"
 
-# Explicit operator bindings are required. These names do not imply particular
-# OpenRouter model IDs, prices, or verified capabilities. Paid permission is separate.
+# Bind connection "litellm" to the proxy's URL in the operator profile.
+# Model strings below are illustrative aliases that must exist in that proxy's
+# own configuration, not extra Ferretta route definitions or promised model IDs.
+# Replace them with the exposed model names you choose. Paid permission is separate.
 [models.a]
-route = "candidate-a"
+connection = "litellm"
+model = "candidate-a"
 inference = "any"
 [models.a.thinking]
 mode = "enabled"
 [models.b]
-route = "candidate-b"
+connection = "litellm"
+model = "candidate-b"
 inference = "any"
 [models.b.thinking]
 mode = "enabled"
 [models.c]
-route = "candidate-c"
+connection = "litellm"
+model = "candidate-c"
 inference = "any"
 [models.c.thinking]
 mode = "enabled"
 [models.boss]
-route = "synthesizer"
+connection = "litellm"
+model = "synthesizer"
 inference = "any"
 [models.boss.thinking]
 mode = "enabled"
 [models.judge]
-route = "independent-judge"
+connection = "litellm"
+model = "independent-judge"
 inference = "any"
 [models.judge.thinking]
 mode = "enabled"

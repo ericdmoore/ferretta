@@ -7,7 +7,8 @@ schema_version = 1
 objective = "quality"
 
 [models.oss]
-route = "local-oss"
+connection = "ollama"
+model = "gpt-oss:20b"
 inference = "local"
 context_tokens = 131072
 max_output_tokens = 16384
@@ -16,7 +17,8 @@ mode = "effort"
 effort = "medium"
 
 [models.qwen]
-route = "local-qwen"
+connection = "ollama"
+model = "qwen3.8:27b-mlx"
 inference = "local"
 context_tokens = 131072
 max_output_tokens = 16384
