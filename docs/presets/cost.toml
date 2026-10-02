@@ -5,6 +5,3 @@ objective = "cost"
 
 [routing]
 prefer = "lowest_incremental_cost"
-
-[planning]
-strategy = "serial_then_escalate"

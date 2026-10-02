@@ -3,6 +3,12 @@
 An agent configuration-authoring skill is deferred until the v1 configuration
 language is specified and validated examples exist.
 
+The [v1 specification draft](https://github.com/ericdmoore/ferretta/blob/main/docs/config-v1.md)
+and [concrete recipes](https://github.com/ericdmoore/ferretta/tree/main/docs/examples)
+propose fields, typed workflow semantics, and scoped limits for discussion. V1 is
+scoped to serial execution with both Ollama and OpenRouter; fan-out/fan-in are
+deferred. These TOMLs are not accepted by the current CLI.
+
 ## Agreed target
 
 The effective policy resolves field by field:
@@ -29,10 +35,12 @@ not the defaults of whoever happens to log in to the machine.
 ## Objectives
 
 Draft [TOML presets](presets/README.md) give `cost`, `time`, and `quality` a
-shared proposed structure, with separate routing and planning preferences.
+shared proposed structure with model-routing preferences. All execute serially
+in v1; explicit stages determine additional passes.
 They are design examples, not configuration accepted by the current CLI.
 The separate [workflow syntax comparison](workflow-syntax.md) records both
-dependency stages and ordered waves without selecting either format.
+dependency stages and ordered waves as future branching alternatives. The v1
+draft uses a flat ordered `workflow.stages` array.
 
 The [scorecard prototype](evaluation.md) accepts separate reviewer and judge JSON
 policy files with independent allowances. Its role rubric is versioned in code.
@@ -48,8 +56,8 @@ publication settings; it does not settle the TOML schema.
 The eventual UI makes switching easy, for example `ferretta config set objective
 quality` or `ferretta review --objective time`. **These commands/flags are not
 implemented yet.** Startup should identify the effective objective, its source,
-and how to change it. Plans follow the objective and resources; advanced policies
-may specify model waves explicitly. A preset cannot silently opt into a paid
+and how to change it. V1 policies may specify serial stages explicitly; broader
+model-wave orchestration is deferred. A preset cannot silently opt into a paid
 provider or weaken the definition of LGTM.
 
 ## Sharing configuration: public import, local ownership
@@ -121,8 +129,8 @@ GitHub App identity under their existing authorization rules.
 
 No TOML loader, layered resolver, objective selector, persistent watch-list editor,
 subscription auth or encrypted secret database is shipped in this slice. These
-decisions establish the contract; the complete TOML schema and JSON migration
-will follow implementation of those policy surfaces. Existing JSON remains
+decisions establish the direction; the v1 draft now proposes a TOML contract,
+while schema adoption and JSON migration remain future work. Existing JSON remains
 explicit and is never silently overwritten or interpreted as TOML.
 
 ## Current Ollama JSON policy

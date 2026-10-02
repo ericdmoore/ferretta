@@ -5,6 +5,3 @@ objective = "quality"
 
 [routing]
 prefer = "strongest_review_evidence"
-
-[planning]
-strategy = "independent_then_synthesize"

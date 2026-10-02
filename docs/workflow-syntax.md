@@ -1,9 +1,15 @@
 # Workflow syntax alternatives (design draft)
 
-**Decision open.** These are two candidate authoring formats for `ferretta.toml`,
-recorded for comparison. Neither is implemented or selected. They complement
+**Future branching design; outside v1.** These are two candidate authoring formats
+for workflows with fan-out/fan-in, retained for comparison. Neither is implemented
+or selected for branching. They complement
 the [objective presets](presets/README.md): objectives express preferences;
 an explicit workflow describes the work and its ordering.
+
+The newer [v1 specification draft](config-v1.md) is scoped to serial execution,
+using a flat ordered `workflow.stages` array. Ollama and OpenRouter are required
+from the first runnable version. The alternatives below are not v1 syntax and
+must not be accepted as such, even if a host could schedule their branches serially.
 
 Both examples describe the same workflow:
 
@@ -21,7 +27,7 @@ TOML's `[[stages]]` is an array of tables. Each stage has a stable identifier;
 its `after` array names prerequisite stages.
 
 ```toml
-schema_version = 1
+# Future sketch: no schema version assigned; invalid as v1 configuration.
 
 [[stages]]
 id = "review-a"
@@ -67,7 +73,7 @@ Each wave declares whether its members run serially or may run concurrently.
 Nested `[[waves.stages]]` tables belong to the most recently declared wave.
 
 ```toml
-schema_version = 1
+# Future sketch: no schema version assigned; invalid as v1 configuration.
 
 [[waves]]
 id = "independent-reviews"
@@ -152,6 +158,6 @@ rules. Effective-plan inspection could show the compiled DAG for either form.
   passing checks, resolved blockers, and exact-revision evidence still govern
   completion and separately authorized merge effects.
 
-The next design decision is which representation feels clearest for ordinary
-repository authors, and whether the other should remain an internal form or an
-advanced public option. Neither choice is required to review these drafts.
+When branching is revisited, decide which representation feels clearest for
+repository authors and whether the other should remain internal. V1's serial
+array does not require that decision now.

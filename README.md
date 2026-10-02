@@ -39,10 +39,14 @@ sessions](docs/proposals.md) post questions through the GitHub App and resume
 through explicit polling or a scoped watcher after human replies. Ferretta does not yet push repairs
 or merge PRs.
 
-The next stages are policy-selected model waves and fallbacks, fuller resource accounting,
-OpenRouter inference, and gated repairs/merging. The agreed configuration layers
+The v1 target is serial review/repair with Ollama and OpenRouter, explicit
+fallbacks, fuller resource accounting, and gated repairs/merging. The agreed configuration layers
 and cost/time/quality objectives are described in [configuration decisions](docs/configuration.md)
 and [architecture](arch.md); the layered TOML resolver is not implemented.
+
+The [v1 configuration draft](docs/config-v1.md) and [example recipes](docs/examples/README.md)
+propose ordered serial stages and bounded loops. Fan-out/fan-in and candidate
+integration are deferred; the current CLI does not execute the TOML examples.
 
 The [review and scorecard guide](docs/evaluation.md) explains the implemented
 Checks workflow, legacy comment mode, and their limits. The [implementation plan](docs/review-evaluation.md)

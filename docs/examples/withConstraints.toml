@@ -1,57 +1,70 @@
-# With Constraints
-# 
-# The following workflow is a example of a workflow
-# narrative(intent.i) -> review(code.1) -> [ repair(code.1 + code.2) | LGTM(stop) | clarification(proposal) ] 
-#                                      -> clarification(proposal.a) -> response(proposal.a)
-#                                      -> review((intent.i, proposal.a), code.3) -> repair(code.3 + code.4)
-#                                      -> review((intent.i, proposal.a), code.5) -> clarification(proposal.b)
-#                                      -> clarification(proposal.b) -> response(proposal.b)
-#                                      -> review((intent.i, proposal.a, proposal.b), code.7) -> repair(code.7 + code.8)
-#                                      -> review((intent.i, proposal.a, proposal.b), code.15) -> LGTM(stop)
-# 
-# This workflow could reoughly be modeled with a WHILE loop
-# the while loop would continue until:
-#  LGTM(stop) 
-#  or a constratin is met, e.g. max number of iterations, max number of repairs, max number of clarifications, etc.
-# 
-# So if we represened it as a funciton block "Intent(prose) -> Review(Cfg, Code) -> Action" 
-# Where Action is the UnionType of Repair(OriginalCode + NewChanges) | LGTM(stop) | Clarification(proposal)
-# 
-# Then perhaps if we made a parallelized version of this function block
-# each funciton call would be a stacked PR
-# 
-# which is akin to a FanOut/FanIn pattern
-# so the parallel node, with numerous configs in represented, is a type of FanOut (or a bakeoff)
-# 
-# Then we need a Fan In Pattern to collect the results of the parallel nodes
-# maybe the config needs a parallel key-word in the vocab?
-# maybe we can represent the parallel node with just an array? or with a map funciton?
-#
-# But then we will need to represent a reducer...
-# Maybe with a "selectMax" keyword? or a 'keepMax' keyword?
-# The issues is really that we are mostly setting a strucutral choke point for how many branches continue.
-# We cant say much about the branches. 
-# So the Reviewer/chooser needs to pick the best branches up to K (where we recommend not exceeding k=4 for now)
-#
-# From thse best K branches then we need a "reduce" keyword? or "fold" or "merge" keyword?`
-# that actually gets us to a best case code generation. that maintains the intent, and has survived scutiny of other models.
-#
-# So then in the ollama exmaple, many models, each after ther first. So possibly iterating with a fast cheap model, 
-# then promoting to a heavier more thoughtful model, 
-#
-#
-# So that might need a "step" keyword? or "step": set: model:____ while: conditions: [!LGTM, Constraints.continue] => [reivew, repair, clarify]
-# Maybe all this points us to a Dhall DSL for the config? who knows...
-# 
-# ## Cconstraints:
-# ### Repo Constraints:
-# constraints applied to the rpeo as a whole. Such as "monthly spend limit"?
-# ### PR Constraints:
-# constraints applied to the PR as a whole. Such as "max number of lines of code"?
-# ### Wave Constraints:
-# constraints applied to the wave as a whole. Such as "max number of waves"?
-# ### Review Constraints:
-# constraints applied to the review as a whole. Such as "max number of reviews"?
-# ### Repair Constraints:
-# constraints applied to the repair as a whole. Such as "max number of repairs"?
+# DESIGN DRAFT: not accepted by the current CLI. See ../config-v1.md.
+# Intent: review -> repair or human clarification -> review, until scoped LGTM
+# or a bound is reached. Confirmations resume saved work; waiting is not compute.
+# Numeric allowances are illustrative, not adopted defaults. Patch-size limits
+# remain an open design question; this recipe does not reinterpret them as tokens.
+schema_version = 1
+objective = "cost"
 
+[models.oss]
+connection = "ollama" # URL is defined in the operator profile.
+model = "gpt-oss:20b"
+inference = "local"
+context_tokens = 131072
+max_output_tokens = 16384
+[models.oss.thinking]
+mode = "effort"
+effort = "medium"
+
+[checks]
+commands = [["make", "check"]]
+formatter = ["make", "fmt"]
+github_required = [] # Repository protections still apply.
+protected_paths = ["go.mod", "go.sum", ".go-version"]
+
+[limits.repository]
+spend_usd = "10.00" # Shared UTC-month ceiling; not permission for this PR to spend.
+period = "calendar_month_utc"
+[limits.pr]
+compute = "60m" # Sum model + tool worker time, including final review and judge.
+spend_usd = "0.00"
+wall_clock = "5h" # From PR creation, including human waiting.
+max_repairs = 4
+max_reviews = 8
+max_proposals = 6 # Versions count; duplicate delivery does not.
+[limits.review]
+compute = "10m"
+max_turns = "unlimited" # Turns and repair cycles are separate controls.
+[limits.repair]
+compute = "10m"
+max_turns = "unlimited"
+[limits.evaluation]
+compute = "10m"
+[limits.reserve]
+final_review_compute = "10m" # Inside the PR's 60m, not additional time.
+evaluation_compute = "10m"
+
+[[workflow.stages]]
+id = "repair-loop"
+kind = "converge"
+input = "pr.head"
+reviewer = "oss"
+repairer = "oss"
+max_repairs = 4
+limits = { compute = "40m" }
+
+[[workflow.stages]]
+id = "final-review"
+kind = "review"
+input = "repair-loop.revision"
+reviewer = "oss"
+evidence = ["repair-loop"]
+
+[completion]
+review = "final-review"
+publish_repairs = true # Only the chosen checked candidate; operator grant required.
+merge = "never"
+
+[evaluation]
+enabled = true
+judge = "oss" # Separate read-only session; disclose shared model identity.

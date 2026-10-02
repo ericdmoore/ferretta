@@ -1,0 +1,154 @@
+# FUTURE DESIGN SKETCH: outside v1 and not accepted by the current CLI.
+# Deliberately unversioned; a v1 reader must reject this document.
+# See ../../config-v1.md for the serial v1 contract.
+# Intent: independent review/repair candidates -> select up to K useful
+# contributions -> integrate compatible ideas -> review the combined revision.
+# Candidates start at the same PR revision, not on top of each other.
+# Child PRs and Cloudflare execution are future options, not required here.
+objective = "quality"
+
+# Bind connection "litellm" to the proxy's URL in the operator profile.
+# Model strings below are illustrative aliases that must exist in that proxy's
+# own configuration, not extra Ferretta route definitions or promised model IDs.
+# Replace them with the exposed model names you choose. Paid permission is separate.
+[models.a]
+connection = "litellm"
+model = "candidate-a"
+inference = "any"
+[models.a.thinking]
+mode = "enabled"
+[models.b]
+connection = "litellm"
+model = "candidate-b"
+inference = "any"
+[models.b.thinking]
+mode = "enabled"
+[models.c]
+connection = "litellm"
+model = "candidate-c"
+inference = "any"
+[models.c.thinking]
+mode = "enabled"
+[models.boss]
+connection = "litellm"
+model = "synthesizer"
+inference = "any"
+[models.boss.thinking]
+mode = "enabled"
+[models.judge]
+connection = "litellm"
+model = "independent-judge"
+inference = "any"
+[models.judge.thinking]
+mode = "enabled"
+
+[checks]
+commands = [["make", "check"]]
+formatter = ["make", "fmt"]
+protected_paths = ["go.mod", "go.sum", ".go-version"]
+
+# Illustrative ceilings, not estimates or promises that selected models fit.
+[limits.repository]
+spend_usd = "10.00"
+period = "calendar_month_utc"
+[limits.pr]
+compute = "90m"
+spend_usd = "2.00"
+max_repairs = 4 # Three candidate attempts plus one integration attempt.
+max_reviews = 8
+[limits.review]
+compute = "10m"
+[limits.repair]
+compute = "10m"
+[limits.selection]
+compute = "5m"
+[limits.integration]
+compute = "20m"
+[limits.evaluation]
+compute = "10m"
+spend_usd = "0.15"
+[limits.reserve]
+final_review_compute = "10m"
+evaluation_compute = "10m"
+final_review_spend_usd = "0.25"
+evaluation_spend_usd = "0.15"
+
+[[workflow.waves]]
+id = "candidates"
+execution = "parallel"
+max_parallel = 3 # Eligible concurrency; host capacity can reduce it.
+[workflow.waves.limits]
+compute = "45m" # Sum worker time, not the duration of the slowest branch.
+spend_usd = "0.90"
+
+[[workflow.waves.stages]]
+id = "candidate-a"
+kind = "converge"
+input = "pr.head"
+evidence = [] # Independent of sibling findings and conversations.
+reviewer = "a"
+repairer = "a"
+max_repairs = 1
+limits = { compute = "15m", spend_usd = "0.30" }
+
+[[workflow.waves.stages]]
+id = "candidate-b"
+kind = "converge"
+input = "pr.head"
+evidence = []
+reviewer = "b"
+repairer = "b"
+max_repairs = 1
+limits = { compute = "15m", spend_usd = "0.30" }
+
+[[workflow.waves.stages]]
+id = "candidate-c"
+kind = "converge"
+input = "pr.head"
+evidence = []
+reviewer = "c"
+repairer = "c"
+max_repairs = 1
+limits = { compute = "15m", spend_usd = "0.30" }
+
+[[workflow.waves]]
+id = "synthesis"
+execution = "serial"
+
+[[workflow.waves.stages]]
+id = "choose"
+kind = "select"
+candidates = ["candidate-a", "candidate-b", "candidate-c"]
+selector = "boss"
+max_selected = 4 # Upper bound, not quota: zero through three are possible here.
+on_partial = "use_completed" # Exclude incomplete candidates; preserve their outcomes.
+limits = { compute = "5m", spend_usd = "0.10" }
+
+[[workflow.waves.stages]]
+id = "combined"
+kind = "integrate"
+input = "pr.head" # Explicit baseline, not whichever candidate finished last.
+selection = "choose"
+repairer = "boss" # Separate editing session; selection is not confirmed human intent.
+if_empty = "keep_input" # Skip editing, then review the unchanged PR.
+limits = { compute = "20m", spend_usd = "0.60" }
+
+[[workflow.waves]]
+id = "acceptance"
+execution = "serial"
+[[workflow.waves.stages]]
+id = "final-review"
+kind = "review"
+input = "combined.revision"
+reviewer = "boss"
+evidence = ["choose", "combined"]
+limits = { compute = "10m", spend_usd = "0.25" }
+
+[completion]
+review = "final-review"
+publish_repairs = true # Only the combined checked candidate may update the parent PR.
+merge = "never"
+
+[evaluation]
+enabled = true
+judge = "judge" # Verify actual model diversity from provenance, not this alias.

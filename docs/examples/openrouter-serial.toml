@@ -1,0 +1,83 @@
+# DESIGN DRAFT: not accepted by the current CLI. See ../config-v1.md.
+# V1 must support the same serial tool loop through Ollama and OpenRouter.
+# Here GPT-OSS 20B reviews/repairs, then GPT-OSS 120B assesses the exact result.
+# Names identify concrete OpenRouter catalog models, not Ferretta route aliases.
+# Availability, supported controls, and prices must be verified at admission.
+# Allowances are illustrative; they are neither quotes nor completion guarantees.
+schema_version = 1
+objective = "cost"
+
+[models.worker]
+connection = "openrouter" # Credentials belong to operator-openrouter.toml's reference.
+model = "openai/gpt-oss-20b"
+inference = "any"
+context_tokens = 65536
+max_output_tokens = 8192
+fallbacks = [] # No implicit model replacement if the route fails.
+[models.worker.thinking]
+mode = "effort"
+effort = "medium"
+
+[models.assessor]
+connection = "openrouter"
+model = "openai/gpt-oss-120b"
+inference = "any"
+context_tokens = 65536
+max_output_tokens = 8192
+[models.assessor.thinking]
+mode = "effort"
+effort = "medium"
+
+[checks]
+commands = [["make", "check"]]
+formatter = ["make", "fmt"]
+github_required = [] # Repository protections still apply.
+protected_paths = ["go.mod", "go.sum", ".go-version"]
+
+[limits.repository]
+spend_usd = "10.00"
+period = "calendar_month_utc"
+[limits.pr]
+compute = "60m" # Model + tool time across the entire serial chain and judge.
+spend_usd = "0.50" # Requires the separate operator paid-inference grant.
+max_repairs = 3
+max_reviews = 8
+max_proposals = 6
+[limits.review]
+compute = "10m"
+max_turns = "unlimited" # Time/money still bound the session.
+[limits.repair]
+compute = "10m"
+max_turns = "unlimited"
+[limits.evaluation]
+compute = "10m"
+[limits.reserve]
+final_review_compute = "10m"
+evaluation_compute = "10m"
+final_review_spend_usd = "0.10" # Protected portions of the PR's $0.50.
+evaluation_spend_usd = "0.10"
+
+[[workflow.stages]]
+id = "improve"
+kind = "converge"
+input = "pr.head"
+reviewer = "worker"
+repairer = "worker"
+max_repairs = 3
+limits = { compute = "40m", spend_usd = "0.30" }
+
+[[workflow.stages]]
+id = "final-review"
+kind = "review"
+input = "improve.revision"
+reviewer = "assessor"
+evidence = ["improve"]
+
+[completion]
+review = "final-review"
+publish_repairs = true
+merge = "never"
+
+[evaluation]
+enabled = true
+judge = "assessor" # Separate read-only session; disclose shared model identity.
