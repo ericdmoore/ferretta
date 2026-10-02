@@ -1,8 +1,9 @@
 # Inspiration
 
-Go agent runtimes and design ideas worth revisiting as Ferretta develops.
-Reference notes reviewed on September 30, 2026. The descriptions below summarize
-upstream documentation; the proposed applications and tradeoffs are our own
+Go agent runtimes, code-review systems, and design ideas worth revisiting as
+Ferretta develops. Original reference notes reviewed on September 30, 2026;
+the OpenCodeReview entry was added on October 2, 2026. The descriptions below summarize
+upstream documentation and inspected sources; the proposed applications and tradeoffs are our own
 assessment. This is a reference catalogue, not a dependency list or a commitment
 to implement every feature. None of these projects is currently a Ferretta
 dependency.
@@ -109,6 +110,61 @@ diagnose a review while keeping private model continuation data out of public PR
 comments and release artifacts. A dashboard is optional; inspectable state is
 valuable on its own.
 
+### OpenCodeReview — alibaba/open-code-review
+
+[Repository](https://github.com/alibaba/open-code-review), inspected at
+[`a758d9c`](https://github.com/alibaba/open-code-review/commit/a758d9cbfb689937c7857ad64b2dd66adb58c0c2)
+on October 2, 2026; Apache-2.0. This is a Go code-review CLI, so it is a useful
+product-level comparison as well as a harness reference.
+
+**Local models:** its [configuration guide](https://github.com/alibaba/open-code-review/blob/a758d9cbfb689937c7857ad64b2dd66adb58c0c2/pages/src/content/docs/en/configuration.md)
+explicitly documents Ollama through `http://127.0.0.1:11434/v1`, using its
+OpenAI-compatible API, an explicit model ID, and a placeholder API key. The model
+must return native structured tool calls. LiteLLM is also a
+[provider preset](https://github.com/alibaba/open-code-review/blob/a758d9cbfb689937c7857ad64b2dd66adb58c0c2/internal/llm/providers.go).
+OpenRouter is one supported provider; the ordinary CLI workflow runs locally
+without a Cloudflare sandbox. We inspected documentation/code, not live inference;
+this does not establish that our particular Qwen/GPT-OSS setup will work well.
+
+**Review design:** deterministic file selection, related-file grouping, and
+rule matching surround the tool-using agent. Separate positioning and comment
+checking stages address source locations and false findings. The
+[comment-checking prompt](https://github.com/alibaba/open-code-review/blob/a758d9cbfb689937c7857ad64b2dd66adb58c0c2/internal/config/template/prompts/review_filter_task_system.md)
+limits removal to comments the available diff disproves, because that checker
+has less context than the original reviewer. Study that evidence boundary; it
+does not turn a second model's agreement into verified correctness or a PR grade.
+
+**Evaluation references:** [AACR-Bench](https://github.com/alibaba/aacr-bench) and
+its [paper](https://arxiv.org/abs/2601.19494) describe AI-assisted, expert-verified
+annotations with repository context. OpenCodeReview reports
+[benchmark results](https://github.com/alibaba/open-code-review/tree/a758d9cbfb689937c7857ad64b2dd66adb58c0c2#benchmark)
+over 200 PRs from 50 repositories and ten languages, measuring precision, recall,
+F1, time, and tokens. Treat those as upstream measurements, not Ferretta results.
+The [reflection dataset](https://huggingface.co/datasets/Alibaba-Aone/aacr-bench)
+contains 2,145 comments: 1,505 expert-verified correct and 640 incorrect. It tests
+whether a checker can distinguish good findings from bad ones; it is not an
+overall repair, intent-alignment, or allocation scorecard.
+
+For Ferretta, a useful experiment would use held-out labeled findings to calibrate
+the judge, measuring both false approval and false rejection. Separately compare
+reviewers' precision and recall against reference findings at exact commits, with
+resource use alongside the results. Retain categories: style suggestions should
+not count as correctness defects merely because a dataset labels them valid.
+Incomplete evidence remains unknown. These experiments fit our preference for
+externalized outcomes and do not require parallel workflows in v1.
+
+**Failure recovery:** the [client](https://github.com/alibaba/open-code-review/blob/a758d9cbfb689937c7857ad64b2dd66adb58c0c2/internal/llm/client.go)
+configures up to five SDK retries; its [retry boundary](https://github.com/alibaba/open-code-review/blob/a758d9cbfb689937c7857ad64b2dd66adb58c0c2/internal/llm/retry_boundary.go)
+classifies transport, timeout, decoding, and stream failures for recorded outcomes.
+This is relevant to our stop-on-500 gap. Ferretta must still put retry admission
+in core policy, retain uncertain consumption, and avoid repeating tool or GitHub
+effects. SDK defaults alone are not our spending or idempotency policy.
+
+The tradeoff is adopting useful parts without importing the whole review pipeline.
+Our authenticated intent decisions, repair publication, allowance enforcement,
+and exact-revision acceptance remain Ferretta responsibilities. No upstream code,
+dependency, model invocation, or benchmark runner has been adopted here.
+
 ## Questions to revisit
 
 | Ferretta question | Start with |
@@ -118,7 +174,9 @@ valuable on its own.
 | How do human waits, replay and execution authority fit together? | agent-harness-go, Harness |
 | Which events should explain progress and stopping to the human? | go-agent, Galdor |
 | How should parallel review waves join and preserve disagreement? | Loom, agent-harness-go |
-| How do we evaluate review quality separately from successful tool execution? | Galdor, Gollem |
+| How do we evaluate review quality separately from successful tool execution? | OpenCodeReview/AACR-Bench, Galdor, Gollem |
+| How do we calibrate the judge against correct and incorrect findings? | AACR-Bench reflection dataset |
+| How do we record and recover from provider failures without hiding retries? | OpenCodeReview, go-agent |
 
 ## Applying an idea
 
