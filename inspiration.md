@@ -2,9 +2,9 @@
 
 Go agent runtimes, code-review systems, and design ideas worth revisiting as
 Ferretta develops. Original reference notes reviewed on September 30, 2026;
-the OpenCodeReview entry was added on October 2, 2026. The descriptions below summarize
-upstream documentation and inspected sources; the proposed applications and tradeoffs are our own
-assessment. This is a reference catalogue, not a dependency list or a commitment
+the code-review comparisons were added on October 2, 2026. The descriptions below
+summarize upstream documentation and inspected sources; the proposed applications
+and tradeoffs are our own assessment. This is a reference catalogue, not a dependency list or a commitment
 to implement every feature. None of these projects is currently a Ferretta
 dependency.
 
@@ -165,6 +165,146 @@ Our authenticated intent decisions, repair publication, allowance enforcement,
 and exact-revision acceptance remain Ferretta responsibilities. No upstream code,
 dependency, model invocation, or benchmark runner has been adopted here.
 
+### Gito — Nayjest/Gito
+
+[Repository](https://github.com/Nayjest/Gito), inspected at
+[`f48498d`](https://github.com/Nayjest/Gito/commit/f48498d192ede9aa81808c2579c69cc5d7919e20)
+on October 2, 2026; Python, MIT.
+
+**Local models:** the [README](https://github.com/Nayjest/Gito/blob/f48498d192ede9aa81808c2579c69cc5d7919e20/README.md)
+explicitly supports Ollama, vLLM, llama.cpp, SGLang and LM Studio through its
+ai-microcore integration. `LLM_API_BASE` selects an endpoint. The CLI and CI
+workflows do not require OpenRouter or a Cloudflare execution environment.
+
+**Configuration and review design:** machine-level connection settings live
+separately from shareable `.gito/config.toml` review behavior. The
+[cookbook](https://github.com/Nayjest/Gito/blob/f48498d192ede9aa81808c2579c69cc5d7919e20/documentation/config_cookbook.md)
+explains overrides and copying defaults, including the consequence that a full
+copy pins settings and stops receiving improved defaults. Its
+[review implementation](https://github.com/Nayjest/Gito/blob/f48498d192ede9aa81808c2579c69cc5d7919e20/gito/core.py)
+validates structured findings and exposes skipped files or malformed responses
+as warnings. That distinction matters when an otherwise empty report could look
+like a successful review.
+
+Its [default policy](https://github.com/Nayjest/Gito/blob/f48498d192ede9aa81808c2579c69cc5d7919e20/gito/config.toml)
+filters findings using model-reported confidence and severity. Asking for high
+confidence, or asking a summary prompt for a numeric grade, does not calibrate
+those scores. No labeled review-quality benchmark was identified in the
+documentation and source tree inspected for this comparison.
+
+For Ferretta, study config ergonomics and explicit coverage gaps. Keep imported
+policy declarative: Gito's executable Python post-processing is a different trust
+boundary from our proposed TOML. Endpoint compatibility also does not establish
+tool-use, reasoning, or review-quality requirements.
+
+### Kodus — kodustech/kodus-ai
+
+[Repository](https://github.com/kodustech/kodus-ai), inspected at
+[`14439a9`](https://github.com/kodustech/kodus-ai/commit/14439a95335f07c92cb445ccea3069a9b2904e30)
+on October 2, 2026; TypeScript. Its
+[license](https://github.com/kodustech/kodus-ai/blob/14439a95335f07c92cb445ccea3069a9b2904e30/license.md)
+is AGPL-3.0 except explicitly marked enterprise code, which has commercial terms.
+Record the relevant file's license before considering code reuse.
+
+**Local models and hosting:** [BYOK configuration](https://github.com/kodustech/kodus-ai/blob/14439a95335f07c92cb445ccea3069a9b2904e30/docs/en/how_to_use/byok.mdx)
+accepts a custom OpenAI-compatible base URL and model ID, including self-hosted
+endpoints. The self-hosted application is a larger service stack than Ferretta.
+Its [sandbox configuration](https://github.com/kodustech/kodus-ai/blob/14439a95335f07c92cb445ccea3069a9b2904e30/docs/en/how_to_deploy/deploy_kodus/sandbox.mdx)
+offers local execution inside the worker container; remote E2B is optional.
+Neither OpenRouter nor Cloudflare is a required inference route.
+
+**Evaluation design:** the [eval suite](https://github.com/kodustech/kodus-ai/blob/14439a95335f07c92cb445ccea3069a9b2904e30/evals/README.md)
+separates offline integration checks using a scripted model from live quality
+measurements. It evaluates finding recall, source anchoring, duplicate removal,
+severity, formatting and verifier behavior separately. Infrastructure failures
+are not treated as quality measurements, and regression floors are tied to the
+judge used to calibrate them.
+
+The [standalone scorer](https://github.com/kodustech/kodus-ai/blob/14439a95335f07c92cb445ccea3069a9b2904e30/evals/scorer/README.md)
+re-scores saved findings without repeating the review. Submissions retain harness
+version, model, requested reasoning settings, execution mode, tokens and latency.
+Replay and live runs are distinguished. The
+[judge-agreement study](https://github.com/kodustech/kodus-ai/blob/14439a95335f07c92cb445ccea3069a9b2904e30/evals/investigation/agreement/README.md)
+compares candidate judges with an incumbent model. Agreement with that model is
+not independent evidence of correctness; human-labeled cases remain necessary
+for Ferretta's calibration. Matching known findings also cannot establish that
+every unmatched finding is false.
+
+For Ferretta, this is a useful reference for repeatable scorecards, evaluation
+provenance and quality regression tests. Preserve separate worker and oversight
+rubrics: finding-level precision/recall does not grade intent alignment, repair
+correctness or resource allocation by itself. Borrow evaluation concepts without
+requiring the surrounding platform or changing our serial v1 scope.
+
+### CodeCanary — alansikora/codecanary
+
+[Website](https://codecanary.sh/) and [repository](https://github.com/alansikora/codecanary),
+inspected at
+[`15a2b9b`](https://github.com/alansikora/codecanary/commit/15a2b9b64475701dbf7cc9e89fe712d77fa893d3)
+on October 2, 2026; Go, MIT.
+
+**Local models:** its [configuration reference](https://github.com/alansikora/codecanary/blob/15a2b9b64475701dbf7cc9e89fe712d77fa893d3/docs/configuration.md)
+documents `provider: openai` with an `api_base` override for Ollama and other
+compatible endpoints. Review and triage models are configurable separately. The
+[adapter](https://github.com/alansikora/codecanary/blob/15a2b9b64475701dbf7cc9e89fe712d77fa893d3/internal/review/provider_compat.go)
+still requires a nonempty configured key, even when the server ignores it.
+
+Local inference and hosted integration are separate: the stock
+[GitHub Action](https://github.com/alansikora/codecanary/blob/15a2b9b64475701dbf7cc9e89fe712d77fa893d3/action.yml)
+exchanges GitHub OIDC credentials at `oidc.codecanary.sh` for an App token. The
+repository includes that broker's Cloudflare Worker. This is an authentication
+service, not a requirement to execute model inference in a Cloudflare sandbox.
+
+**Review lifecycle:** its [review flow](https://github.com/alansikora/codecanary/blob/15a2b9b64475701dbf7cc9e89fe712d77fa893d3/docs/review-flow.md)
+uses deterministic rules to decide which existing threads need model
+re-evaluation. Changes since the previous review determine eligibility; the full
+PR diff supplies context. Unchanged threads can avoid another model call, and
+acknowledgments prevent repeated replies. Findings are checked against changed
+files and nearby diff lines. These checks constrain location and scope; they do
+not establish that the claimed bug is real. No labeled quality benchmark was
+identified in the inspected documentation and source tree.
+
+For Ferretta, study incremental review and carrying findings across commits.
+Reuse must retain revision/policy provenance and explicitly invalidate stale
+evidence. CodeCanary's reply interpretation must not substitute for our
+authenticated `CORRECTED`/`CONFIRMED` decisions. Its small Go provider/platform
+interfaces are also worth comparing with our executor boundaries.
+
+### Harrier — saifullahsaeed/pr-review-action
+
+[Repository](https://github.com/saifullahsaeed/pr-review-action), now presented as
+Harrier, inspected at
+[`c46353e`](https://github.com/saifullahsaeed/pr-review-action/commit/c46353eefaa150ce082f07134837dc3b175b20fb)
+on October 2, 2026; TypeScript. The inspected
+[LICENSE](https://github.com/saifullahsaeed/pr-review-action/blob/c46353eefaa150ce082f07134837dc3b175b20fb/LICENSE)
+is MIT, despite the repository's older Apache-2.0 description.
+
+**Local models:** the [README](https://github.com/saifullahsaeed/pr-review-action/blob/c46353eefaa150ce082f07134837dc3b175b20fb/README.md)
+provides an Ollama `--endpoint http://localhost:11434/v1` example. The
+[client](https://github.com/saifullahsaeed/pr-review-action/blob/c46353eefaa150ce082f07134837dc3b175b20fb/src/llm/client.ts)
+uses configurable OpenAI-compatible chat completions, supporting local serving
+or remote providers such as OpenRouter. It runs as a CLI, container or GitHub
+Action; private endpoints require a runner with network access to them.
+
+**Review and gate design:** deterministic scanners feed a structured report,
+alongside bounded LLM review passes and an
+[adversarial verifier](https://github.com/saifullahsaeed/pr-review-action/blob/c46353eefaa150ce082f07134837dc3b175b20fb/src/llm/verifier.ts).
+The verifier records reasons for dropping findings; if its call fails, it retains
+the original findings and records failure. This is a second assessment, not a
+calibrated grade. The inspected tests include fixtures and planted defects, but
+do not establish measured accuracy of a live reviewer/judge.
+
+The [quality gate](https://github.com/saifullahsaeed/pr-review-action/blob/c46353eefaa150ce082f07134837dc3b175b20fb/src/gate.ts)
+distinguishes pass, fail and incomplete. It compares deterministic findings with
+a base revision to separate existing debt from new or worsened findings; missing
+required probes or a failed baseline remain incomplete. AI findings are advisory
+to that gate. The Action takes gate policy from the trusted base revision.
+
+For Ferretta, study explicit coverage and baseline states, and reporting partial
+work honestly. Its fixed LLM passes are not a replacement for our resumable
+tool-using harness. Before adding a verifier, measure both false findings removed
+and real findings incorrectly suppressed on held-out labeled cases.
+
 ## Questions to revisit
 
 | Ferretta question | Start with |
@@ -174,8 +314,12 @@ dependency, model invocation, or benchmark runner has been adopted here.
 | How do human waits, replay and execution authority fit together? | agent-harness-go, Harness |
 | Which events should explain progress and stopping to the human? | go-agent, Galdor |
 | How should parallel review waves join and preserve disagreement? | Loom, agent-harness-go |
-| How do we evaluate review quality separately from successful tool execution? | OpenCodeReview/AACR-Bench, Galdor, Gollem |
-| How do we calibrate the judge against correct and incorrect findings? | AACR-Bench reflection dataset |
+| How do we evaluate review quality separately from successful tool execution? | OpenCodeReview/AACR-Bench, Kodus evals, Galdor, Gollem |
+| How do we calibrate the judge against correct and incorrect findings? | AACR-Bench reflection dataset; Kodus judge-agreement methods, with human labels |
+| How do we re-score saved outputs without rerunning the reviewer? | Kodus standalone scorer |
+| How do we make layered config understandable and shareable? | Gito configuration cookbook |
+| Which findings and replies need re-evaluation after a new commit? | CodeCanary review flow |
+| How do we distinguish existing debt, new defects and incomplete checking? | Harrier quality gate |
 | How do we record and recover from provider failures without hiding retries? | OpenCodeReview, go-agent |
 
 ## Applying an idea
