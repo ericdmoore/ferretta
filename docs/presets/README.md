@@ -5,11 +5,11 @@ These TOML files propose their common vocabulary. They are design examples, not
 runtime configuration: the current CLI does not load them. The schema version
 is a proposed format version, not a Ferretta release number.
 
-| Preset | Model preference | Planning preference |
+| Preset | Model preference | Serial v1 behavior |
 | --- | --- | --- |
-| [cost.toml](cost.toml) | Lowest additional cost among eligible models | Start with one reviewer; escalate when evidence warrants more work. |
-| [time.toml](time.toml) | Lowest expected completion latency | Run useful independent work concurrently when resources permit. |
-| [quality.toml](quality.toml) | Strongest relevant review evidence | Seek independent observations, synthesize findings and dissent, then review the integrated result. |
+| [cost.toml](cost.toml) | Lowest additional cost among eligible models | Prefer economical choices within the configured sequence. |
+| [time.toml](time.toml) | Lowest expected completion latency | Prefer faster eligible choices; stages still run one at a time. |
+| [quality.toml](quality.toml) | Strongest relevant review evidence | Prefer stronger evidence; any additional passes are explicit serial stages. |
 
 These are preferences within authorized constraints, not guarantees. Cost does
 not mean always local; time does not mean always remote; quality does not mean
@@ -38,7 +38,7 @@ settings, the user/service profile, then the built-in default. An explicit
 invocation objective selects the preset for that invocation within the same
 permissions. The selected preset supplies built-in preferences; it is not an
 additional override layer. Resolve remaining fields through the existing
-configuration ladder. Explicit higher-layer routing or planning preferences
+configuration ladder. Explicit higher-layer routing preferences and stage plans
 survive a preset change and must appear in the effective configuration.
 
 Absent fields inherit; explicit values replace; lists replace as a unit.
@@ -61,21 +61,22 @@ eligible routes produce an actionable configuration/incomplete result. Presets
 cannot silently authorize paid inference, substitute an unapproved model, or
 assume a discovered local endpoint serves local inference.
 
-Planning preferences do not mandate a fixed number of models or waves. Quality
-may use one eligible model when that is all policy permits; report that there
-was no independent second opinion. Time may run serially on constrained hardware.
-Explicit advanced DAG policies take precedence over these planning preferences.
-Their syntax is still open. Compare the two candidate
-[workflow formats](../workflow-syntax.md): dependency stages and ordered waves.
+All presets execute serially in v1. Without an explicit workflow, each uses the
+same minimal final-review plan; operator setup supplies its model. Quality may
+use one eligible model; report when there was no independent second opinion.
+An explicit `workflow.stages` array fixes the sequence and role assignments;
+changing the objective does not reorder stages or replace their selected models.
+There is no `planning.strategy` field in v1. The earlier branching
+[workflow formats](../workflow-syntax.md) remain future design alternatives.
 
 Repair, publishing, and merging remain subject to separately authorized effects.
-The hot seat recommends allocation; the core enforces policy. An explicitly
+The core initially makes deterministic allocation decisions. An explicitly
 configured local Intern can be a fallback, subject to the same acceptance gates
 and remaining compute allowance.
 
 Presets do not reset or increase budgets. Money, model-and-tool execution time,
 repair cycles, and optional wall-clock deadlines are separate constraints.
-Parallel execution sums worker time; human waiting is excluded from compute.
+Model and tool execution count toward compute; human waiting is excluded.
 Do not impose a model-turn ceiling merely by selecting an objective: model
 turns and review/repair cycles are different controls. The v1 draft proposes
 concrete resource defaults and fields; they remain open for discussion.
@@ -87,12 +88,13 @@ The [v1 specification draft](../config-v1.md) now proposes the broader schema an
 compatible with that proposal; neither the schema nor planner is implemented.
 
 The only proposed fields in these files are `schema_version`, `objective`,
-`routing.prefer`, and `planning.strategy`, with the values shown above. This
+and `routing.prefer`, with the values shown above. This
 gives us three reviewable preset personalities without pretending the full
 policy schema is settled.
 
 The v1 draft proposes model aliases and role assignments, capability/effort
-requirements, checks, limits, permitted effects, fallbacks, and explicit waves.
+requirements, checks, limits, permitted effects, fallbacks, and serial stages.
+Both Ollama and OpenRouter are required in the first runnable v1 release.
 Those details remain under discussion and are not accepted by the CLI.
 Credentials, endpoints, watch lists, and state paths remain operator settings;
 portable policy refers to configured connections. See

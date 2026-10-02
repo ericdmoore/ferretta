@@ -32,7 +32,6 @@ wall_clock = "5h" # From PR creation, including human waiting.
 max_repairs = 4
 max_reviews = 8
 max_proposals = 6 # Versions count; duplicate delivery does not.
-max_waves = 2
 [limits.review]
 compute = "10m"
 max_turns = "unlimited" # Turns and repair cycles are separate controls.
@@ -45,23 +44,16 @@ compute = "10m"
 final_review_compute = "10m" # Inside the PR's 60m, not additional time.
 evaluation_compute = "10m"
 
-[[workflow.waves]]
-id = "improve"
-execution = "serial"
-[workflow.waves.limits]
-compute = "40m"
-[[workflow.waves.stages]]
+[[workflow.stages]]
 id = "repair-loop"
 kind = "converge"
 input = "pr.head"
 reviewer = "oss"
 repairer = "oss"
 max_repairs = 4
+limits = { compute = "40m" }
 
-[[workflow.waves]]
-id = "acceptance"
-execution = "serial"
-[[workflow.waves.stages]]
+[[workflow.stages]]
 id = "final-review"
 kind = "review"
 input = "repair-loop.revision"

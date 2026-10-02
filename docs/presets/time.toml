@@ -5,6 +5,3 @@ objective = "time"
 
 [routing]
 prefer = "lowest_expected_latency"
-
-[planning]
-strategy = "parallel_when_useful"

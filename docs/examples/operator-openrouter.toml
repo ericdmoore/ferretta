@@ -1,0 +1,21 @@
+# DESIGN DRAFT: companion operator profile, not root ferretta.toml.
+# Not accepted by the current CLI. No key is stored here or requested by loading.
+# Store the real profile and service environment outside PR-controlled files.
+# This example explicitly opts into paid inference; never apply it implicitly.
+schema_version = 1
+
+[connections.openrouter]
+provider = "openrouter"
+credential_ref = "env:OPENROUTER_API_KEY"
+# The adapter owns https://openrouter.ai/api/v1/chat/completions.
+# A missing/empty variable fails setup; never pass the key to model tools/checks.
+
+[permissions]
+paid_inference = true
+repair_commits = true
+squash_merge = false
+intent_humans = ["ericdmoore"] # Replace with the installation's authorized humans.
+resource_humans = ["ericdmoore"]
+
+[defaults]
+objective = "cost"

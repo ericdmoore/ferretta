@@ -1,30 +1,34 @@
 # Ferretta configuration v1 — specification draft
 
-**Proposed for discussion, not implemented or adopted.** This draft turns the
-intentions in [the examples](examples/README.md) into one concrete language. The
-current CLI still reads its existing JSON policies. A successful TOML parse does
-not make these examples executable by Ferretta.
+**Specification draft; not implemented.** The v1 scope is **serial execution with
+Ollama and OpenRouter support in the first runnable release**. Field names and
+numeric defaults remain proposals for discussion. The current CLI still reads
+its existing JSON policies and implements Ollama inference only. A successful
+TOML parse does not make [these examples](examples/README.md) executable.
 
-The proposed authoring form is **ordered waves containing typed stages**, with
-explicit revision and evidence inputs. It compiles to the durable DAG described
-in [architecture](../arch.md). The [dependency-stage alternative](workflow-syntax.md)
-remains available for comparison; this choice is not settled. There is no general
-expression language, script interpolation, or user-defined function mechanism.
+The proposed authoring form is an **ordered array of typed stages**, with explicit
+revision and evidence inputs. Each stage finishes before the next begins. Fan-out,
+fan-in, selection, integration, and parallel execution are outside v1, including
+independent branches scheduled one at a time. The [future branching sketch](examples/future/diverge-and-converge-workflow.toml)
+and [syntax alternatives](workflow-syntax.md) preserve those ideas for later.
+The serial plan still fits the durable DAG in [architecture](../arch.md); v1
+exposes a chain. There is no expression language or script interpolation.
 
 ## 1. Required semantics
 
 - Review an existing PR, optionally repair it, and stop on acceptance or constraints.
 - Pause for authenticated human intent decisions without spending compute while
   waiting. No pre-existing confirmed intent is required to start.
-- Distinguish independent candidates scheduled serially from a serial chain in
-  which each model receives the previous model's changes.
-- Fan out from one revision, select useful contributions, integrate them, and
-  review the combined result. Candidate LGTM is scoped to that candidate.
+- Pass the previous stage's revision to the next stage; retain exact evidence
+  and model provenance across local and OpenRouter sessions.
+- Support tools, multiple turns, reasoning settings, and bounded review/repair
+  for both adapters. A cloud model uses the same acceptance gates as a local one.
 - Keep objectives, eligible routes, constraints, and acceptance separate.
 - Explain effective configuration and bind it to exact work and evidence.
 
-The three original recipes are acceptance cases for this design, not promises
-that all orchestration ships in the first implementation slice.
+The serial recipes are v1 acceptance cases. Supporting only local inference does
+not complete v1; supporting an OpenRouter text-only request does not complete it
+either. The divergent recipe is a future design, not a v1 acceptance case.
 
 ## 2. Documents, versions, and authority
 
@@ -49,14 +53,14 @@ version alone is not a claim that a particular binary implements every v1 featur
 authorized PR override > trusted repo policy > operator profile defaults > builtin
 ```
 
-Resolve the objective first; its preset supplies builtin routing/planning
+Resolve the objective first; its preset supplies builtin routing
 preferences. Resolve other fields through the same ladder. An explicit invocation
 objective overrides that invocation's objective within existing grants. A preset
-change does not replace explicitly configured stages or routes.
+change does not replace explicitly configured stages or model assignments.
 
 Missing fields inherit. Scalars and arrays replace; arrays never append or merge
-by ID. Named tables merge by key. `workflow.waves` replaces the complete wave array,
-including nested stages. Empty arrays clear inherited arrays only where the result
+by ID. Named tables merge by key. `workflow.stages` replaces the complete stage
+array. Empty arrays clear inherited arrays only where the result
 is valid; an empty workflow is invalid. There is no `null`/delete-table mechanism
 in v1. Unreferenced model definitions may remain. A model's tagged `thinking` table
 is an exception: replace it atomically to avoid combining contradictory controls.
@@ -81,11 +85,10 @@ updates. Loading/validating a policy does not execute it.
 | `schema_version` | Required integer `1`. |
 | `objective` | `cost` (default), `time`, or `quality`. |
 | `routing.prefer` | `lowest_incremental_cost`, `lowest_expected_latency`, or `strongest_review_evidence`. |
-| `planning.strategy` | `serial_then_escalate`, `parallel_when_useful`, or `independent_then_synthesize`. |
 | `models.<id>` | Explicit model name and requirements referencing an operator connection. |
 | `checks` | Trusted local commands, additional GitHub checks, formatter, protected paths. |
 | `limits` | Repository, PR, operation, and reserved allowances. |
-| `workflow.waves` | Optional explicit array of waves; replaces automatic planning. |
+| `workflow.stages` | Optional explicit ordered array of serial stages; replaces automatic planning. |
 | `completion` | Required final-review stage and publication/merge policy. |
 | `evaluation` | Separate read-only scorecard judge. |
 
@@ -99,16 +102,17 @@ Without an explicit workflow, the initial planner creates one final review using
 the effective model alias `default-review`. Repair is off. Evaluation uses alias
 `default-judge` when configured, otherwise reports unavailable. Operator setup
 supplies these model definitions through `defaults.models` (section 9), including
-their connection, model name, and thinking requirements. Until advanced planning exists,
-all three objectives share this minimal plan and disclose that limitation.
+their connection, model name, and thinking requirements. All three objectives
+share this minimal automatic plan in v1; they express model preferences, not
+different concurrency modes. Explicit stages determine any additional passes.
 Missing bindings produce setup guidance without downloading models or inference.
 A zero-file repo policy is possible after operator setup; it cannot invent
 connections, human allowlists, or trusted project checks.
 
 ## 4. Models and roles
 
-Model, wave, and stage IDs use `[a-z][a-z0-9_-]*`. Stage IDs are unique across
-the workflow; model/wave IDs are unique within their own collections.
+Model, connection, and stage IDs use `[a-z][a-z0-9_-]*`. Stage IDs are unique across
+the workflow; model/connection IDs are unique within their own collections.
 
 ```toml
 [models.worker]
@@ -143,26 +147,27 @@ directly while a user/service profile supplies the machine-specific connection:
 provider = "ollama"
 endpoint = "http://127.0.0.1:11434"
 
-# Alternative connection for an explicitly configured LiteLLM proxy.
-[connections.litellm]
-provider = "openai_compatible"
-endpoint = "http://127.0.0.1:4000"
+# OpenRouter is also required in v1; the adapter knows its HTTPS endpoint.
+[connections.openrouter]
+provider = "openrouter"
+credential_ref = "env:OPENROUTER_API_KEY"
 ```
 
 The URL locates a server; it does not select a model or specify its API protocol.
-For LiteLLM, `model` is its explicitly configured public model alias. Record the
-requested alias and reported underlying model/provider separately; the alias may
-route to multiple deployments, and missing execution identity remains unknown.
+Record requested and reported model/provider identities separately; missing
+execution identity remains unknown.
 Explain must show the configured protocol, endpoint, model, and requested settings.
 Connection/model changes affect future policy identity, not substitutions into
-saved sessions. LiteLLM/compatible inference is proposed here; currently only
-Ollama inference is implemented, with compatible endpoints used for discovery.
+saved sessions. Generic compatible inference, including LiteLLM and vLLM, remains
+a later adapter extension. Metadata discovery does not imply inference support.
+When added, a compatible connection will name its base URL and the exact model
+alias exposed by that server; a loopback proxy is not proof of local inference.
 
 `inference` is `local` (default) or `any`. `any` permits an authorized remote route,
 not paid use by itself. A local proxy does not prove local inference. Tools,
 multi-turn continuation, and reasoning capability are required for all model roles
-in this draft. Registry permissions follow the task: review/selection/evaluation
-cannot edit; repair/integration may edit within policy. Judges cannot execute
+in this draft. Registry permissions follow the task: review/evaluation
+cannot edit; repair may edit within policy. Judges cannot execute
 configured checks; reviewers may run trusted checks despite read-only inspection.
 
 The required `thinking` table is an atomic tagged choice:
@@ -177,7 +182,10 @@ Reject contradictory/extra fields; preserve requested versus reported settings.
 `context_tokens` defaults to 16,384, must be at least 8,192, and must fit verified
 model capacity. `max_output_tokens` defaults to 4,096, must be at least 256, and
 must leave at least 2,048 input tokens. These bounds do not prove that a model and
-context fit RAM or will reason usefully.
+context fit RAM or will reason usefully. For OpenRouter, `context_tokens` bounds
+Ferretta's conversation budget within verified capacity; it is not an Ollama
+`num_ctx` request. The adapter maps `max_output_tokens` to `max_tokens` and accounts
+for the selected model's reasoning/output token rules.
 
 `fallbacks` is an ordered array of other model IDs, default empty. Targets must
 have empty fallback lists; no recursive fallback graph. Reject missing, duplicate,
@@ -187,11 +195,46 @@ work allowances and permissions while using its own declared model settings.
 Role requirements cannot silently weaken. Timeout/HTTP failure is not proof of
 zero consumption: reconcile uncertainty or stop before more spending.
 
-Reviewer, repairer, selector, integrator, and judge are responsibilities, not
+Reviewer, repairer, and judge are responsibilities, not
 necessarily different models. Reusing a model in separate sessions must be
 disclosed; it does not establish model diversity. Deterministic core policy
-allocates work initially. Selection chooses contributions, not allowances.
+allocates work initially; it admits the next serial operation within allowances.
 A general model allocator and configurable grading rubrics remain deferred.
+
+### OpenRouter is a v1 adapter requirement
+
+The [OpenRouter recipe](examples/openrouter-serial.toml) uses explicit model IDs
+through an operator-owned connection. Local and cloud models may also alternate
+in one chain; each role names its own model definition.
+
+- Use `https://openrouter.ai/api/v1/chat/completions` with Bearer authentication
+  resolved from the operator credential reference. The key is never repo policy,
+  a tool environment variable, or public output. See [authentication](https://openrouter.ai/docs/api/reference/authentication).
+- Include the role's allowed tool schemas each turn; retain assistant tool calls,
+  call IDs, and matching results. Execute tools serially under core policy, even
+  if one response requests several calls. See [tool calling](https://openrouter.ai/docs/guides/features/tool-calling).
+- Translate the requested thinking mode using supported `reasoning` controls.
+  Preserve provider-required continuation data, including opaque
+  `reasoning_details`, privately across turns/checkpoints. Unsupported requirements
+  fail eligibility; requested effort never becomes claimed observed effort.
+  See [reasoning controls and continuation](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens).
+- Require a concrete model ID, verified capabilities, and parameter-compatible
+  upstream routing (`provider.require_parameters = true`). Disable provider
+  fallbacks with `provider.allow_fallbacks = false`; model substitution is only
+  through Ferretta's explicit `fallbacks`. Automatic model routers and implicit
+  model fallback lists are outside v1. Record the upstream provider when reported.
+  See [provider routing](https://openrouter.ai/docs/guides/routing/provider-selection).
+- Before paid dispatch, reserve a bounded charge using input size, maximum output,
+  all applicable billable units, and eligible provider prices. Record actual usage,
+  cost, and request identity when reported. Unresolved cost retains the reservation;
+  a timeout cannot trigger a blind retry. A model catalog entry is a candidate,
+  not proof of affordable execution or tool/reasoning correctness.
+
+An OpenRouter connection still requires `inference = "any"`; paid requests also
+need operator permission and a positive remaining money allowance. A free route
+needs verified zero pricing, supported capabilities, and the same compute limits.
+No paid fallback is implied by the disappearance of a free route. Batch requests
+remain a separate future feature; v1 uses the interactive tool loop.
 
 ### Direct values and references
 
@@ -256,18 +299,18 @@ never unlimited. This differs deliberately from legacy JSON zero time/turn field
 | Scope | Fields |
 | --- | --- |
 | `limits.repository` | `spend_usd`, `period = "calendar_month_utc"`; required together, otherwise no additional period cap. |
-| `limits.pr` | `compute`, `spend_usd`, `wall_clock`, `max_repairs`, `max_reviews`, `max_proposals`, `max_waves`. |
-| `limits.review`, `.repair`, `.selection`, `.integration`, `.evaluation` | Per-operation `compute`, `spend_usd`, `max_turns`. |
-| `workflow.waves[].limits` and `...stages[].limits` | Cumulative `compute`, `spend_usd` for that instance. |
+| `limits.pr` | `compute`, `spend_usd`, `wall_clock`, `max_repairs`, `max_reviews`, `max_proposals`. |
+| `limits.review`, `.repair`, `.evaluation` | Per-operation `compute`, `spend_usd`, `max_turns`. |
+| `workflow.stages[].limits` | Cumulative `compute`, `spend_usd` for that stage instance. |
 | `limits.reserve` | `final_review_compute`, `evaluation_compute`, `final_review_spend_usd`, `evaluation_spend_usd`. |
 
 Proposed builtin ceilings, open for discussion:
 
 | Scope | Defaults |
 | --- | --- |
-| PR | 60m compute; `"0.00"` dollars; unlimited wall clock; four repair attempts, 20 reviews, eight proposal versions, 16 wave admissions. |
-| Operation | Review 10m, repair 15m, selection 5m, integration 20m, **evaluation 10m**; unlimited turns within other bounds. Money inherits the PR ceiling unless narrowed. |
-| Wave/stage | Remaining enclosing allowance unless narrowed. `converge.max_repairs` is always explicit. |
+| PR | 60m compute; `"0.00"` dollars; unlimited wall clock; four repair attempts, 20 reviews, eight proposal versions. |
+| Operation | Review 10m, repair 15m, **evaluation 10m**; unlimited turns within other bounds. Money inherits the PR ceiling unless narrowed. |
+| Stage | Remaining enclosing allowance unless narrowed. `converge.max_repairs` is always explicit. |
 | Reserves | 10m final review and 10m enabled evaluation; zero evaluation reserve when disabled; zero monetary reserves. |
 
 Defaults do not enable repairs/paid routes. Reserves protect portions of the
@@ -277,13 +320,13 @@ operation limits; release safely unused reservations afterward. Reject reserves
 exceeding a finite parent allowance. Paid final review/judging needs adequate
 explicit monetary reservations before optional work; zero does not promise a paid
 finale. Plans must be able to admit required final assessment under every limit.
-Protect its remaining review/wave counter slots too, and reserve paid final work
+Protect its remaining review counter slot too, and reserve paid final work
 against the shared repository ledger so other PRs cannot spend it first. Counter
 reservations are derived from the plan and shown by explain, not new allowances.
 
-Count model and tool execution, including checks, retries, selection, integration,
-final review, and evaluation. Sum concurrent worker durations; do not also charge
-enclosing stage elapsed time. Queueing/human waiting is excluded from compute.
+Count model and tool execution, including checks, retries, final review, and
+evaluation. Sum operation durations; do not also charge enclosing stage elapsed
+time. V1 executes these operations serially. Queueing/human waiting is excluded from compute.
 Wall-clock allowance runs from PR creation and includes both. Provider request
 duration is observed execution, not a claim about GPU utilization.
 
@@ -291,13 +334,12 @@ Durable PR counters span commits and attempts:
 
 - New review sessions increment `max_reviews`; human-wait resumption does not;
   a fresh retry does.
-- Admitted repair and integration sessions increment `max_repairs`, even when
-  unproductive. A no-call integration does not. Turns and commits are not cycles.
+- Admitted repair sessions increment `max_repairs`, even when unproductive.
+  Turns and commits are not cycles.
 - New proposal versions increment `max_proposals`; delivery/reconciliation of
   an existing version does not. Corrections may require another slot.
-- New wave instances increment `max_waves`; resumption does not.
 
-Stage loop limits and stage/wave allowances cover that instance including retries;
+Stage loop limits and stage allowances cover that instance including retries;
 PR totals retain earlier instances too. New heads, restarts, reruns, route/profile
 changes, and fallbacks do not reset usage. Monthly repository totals span jobs in
 one installation. Charge dispatches to their UTC admission month; retain pending
@@ -316,13 +358,32 @@ every applicable limit. Resuming afterward requires authenticated human interven
 intent confirmation or calendar rollover alone does not clear a resource stop.
 Exhaustion never becomes LGTM. Declining resources leaves agreed intent intact.
 
-## 7. Waves, stage types, and data flow
+## 7. Serial stages and data flow
 
-Each `[[workflow.waves]]` requires `id`, `execution = "serial" | "parallel"`,
-and a nonempty `stages` array. Waves execute in order after the prior wave settles.
-Serial stage order matters. Parallel siblings are independent; host capacity can
-run them one at a time without changing inputs. Optional positive `max_parallel`
-narrows a parallel wave's concurrency; it is invalid on a serial wave.
+`[[workflow.stages]]` is a native TOML array of tables. Array order is execution
+order. Each stage completes before the next starts; no `execution` switch,
+`after` graph, wave wrapper, or concurrency setting is needed in v1.
+
+```toml
+[[workflow.stages]]
+id = "improve"
+kind = "converge"
+input = "pr.head"
+reviewer = "worker"
+repairer = "worker"
+max_repairs = 2
+
+[[workflow.stages]]
+id = "final-review"
+kind = "review"
+input = "improve.revision"
+reviewer = "assessor"
+evidence = ["improve"]
+```
+
+This fragment omits model definitions, checks, allowances, and completion settings;
+the [complete recipes](examples/README.md) include them. Reviewer/repairer may use
+Ollama while assessor uses OpenRouter, or all may use the same adapter.
 
 Every stage requires `id`, `kind`, and its kind-specific fields:
 
@@ -330,21 +391,24 @@ Every stage requires `id`, `kind`, and its kind-specific fields:
 | --- | --- | --- | --- |
 | `review` | `input`, `reviewer` | `evidence`, `limits` | Findings/LGTM for the input revision; no edits. |
 | `converge` | `input`, `reviewer`, `repairer`, integer `max_repairs` | `evidence`, `limits` | Bounded review/repair work and last usable revision. |
-| `select` | Nonempty `candidates`, `selector`, `max_selected` (1–4) | `on_partial`, `limits` | Zero through K selected contributions and reasons. |
-| `integrate` | `input`, `selection`, `repairer` | `if_empty`, `limits` | Checked combined candidate, or unchanged input. |
 
 Model fields name `models.<id>`. `input` is `"pr.head"` or
-`"<stage-id>.revision"`. `pr.head` means the head pinned at admission, never a
-moving branch. Revision references may name earlier review/converge/integrate
-results. `evidence` (default `[]`) names earlier results to expose; ordering does
+`"<stage-id>.revision"`. The first stage must use `pr.head`: the head pinned at
+admission, never a moving branch. Every later stage must reference the immediately
+previous stage's revision. A review passes that revision through unchanged; a
+converge stage may return a checked repair. Reject branch resets to `pr.head`,
+skipped predecessors, forward references, and cycles rather than approximating
+independent candidates as a chain.
+
+`evidence` (default `[]`) names earlier results on this chain to expose; ordering does
 not automatically expose private conversations. All work also receives applicable
 PR context and authenticated intent evidence.
 
-`candidates` names converge/integrate results; `selection` names a select result.
-References must point to a prior wave or earlier member of the same **serial**
-wave. Reject parallel sibling references, forward references, cycles, duplicate
-references, and result-type mismatches. Compile ordering edges and artifact inputs
-separately. Persist stable stage/round/attempt/effect identities.
+Evidence may reference several prior assessments without creating a branch/join:
+they already ran serially on the same revision lineage. Reject missing, duplicate,
+and forward evidence references. Compile ordering edges and artifact inputs
+separately; retain stable stage/round/attempt/effect identities. There are no
+`select` or `integrate` stage kinds, `candidates`, or partial-join controls in v1.
 
 Converge has built-in behavior, not a programmable `while`:
 
@@ -366,25 +430,12 @@ not fabricate commits/acceptance. Repetition appends DAG nodes, never back edges
 
 `needs_work` is a completed assessment that can feed later repair; `incomplete`
 is not. Revision consumers stop on incomplete prerequisites in this draft.
-`select.on_partial` is `"stop"` by default, or explicitly `"use_completed"` to
-exclude incomplete candidates while reporting their outcomes. Completed candidates
-with useful checked changes may be selected despite remaining findings; those
-findings travel with the contributions and are not implicitly resolved.
-
-Joins wait for terminal sibling outcomes. Human waits are not terminal; unrelated
-siblings may proceed. Uncertain effects pause affected joins until reconciled.
-No speculative quorum/early-cancel behavior in v1. Whole-job failure still publishes
-captured status and evaluates available evidence within remaining allowance.
-
-Selection may choose zero, with reasons, sources, incompatibilities, and dissent.
-`max_selected` bounds distinct candidate IDs, not the number of ideas in a brief.
-It creates an implementation brief, not human-confirmed intent or a scorecard.
-`integrate.if_empty` defaults to `"stop"`; explicit `"keep_input"` skips model
-editing and sends the unchanged input to final review without implying LGTM.
-Integration starts from its explicit baseline, combines compatible ideas, and
-records incorporated/rejected contributions. It is not blind patch concatenation.
-Candidates are private worktrees/retained commits. Child PR publication, Cloudflare
-execution, and multiple-owner coordination remain deferred.
+An awaiting-human or uncertain stage also blocks its successors. Whole-job failure
+still publishes captured status and evaluates available evidence within remaining
+allowance. Carry unresolved findings forward; a new stage cannot erase them.
+Repair candidates are private worktrees/retained commits until publication.
+Branching candidates, selection, integration, child PR publication, Cloudflare
+execution, and multiple-owner coordination remain future work.
 
 ### Compiled records and recovery
 
@@ -395,8 +446,8 @@ execution state. Each node records its PR, input head/base, intent snapshot,
 resolved policy, role, stage/round identity, and artifact dependencies.
 
 Results retain the input/output commits, any checked candidate tree and parent,
-findings and their sources, selected/incorporated contributions, actual model
-provenance, and resource usage. An unchanged input is a distinct result from a
+findings and their sources, actual model provenance, and resource usage.
+An unchanged input is a distinct result from a
 checked repair candidate. `awaiting_human` carries its exact pending question and
 saved session; `uncertain` carries the effect identity and outstanding reservation;
 `incomplete` carries a reason and the evidence actually obtained. These must not be
@@ -405,7 +456,7 @@ independent flags capable of representing both accepted and blocked work.
 Use the single owner's durable store to reconcile repeated notifications against
 the same node/attempt/effect. Recovery reuses completed results and resumes only
 supported transitions; it never blindly repeats an uncertain model call, question,
-push, or selection. This is the target contract, not a claim that arbitrary session
+or push. This is the target contract, not a claim that arbitrary session
 replay or the full DAG scheduler is implemented today.
 
 ## 8. Completion, publication, and scorecards
@@ -422,16 +473,16 @@ judge = "oss"
 ```
 
 An explicit workflow names exactly one required final `review` stage. It must be
-last in the last serial wave, or the only stage in the last wave. Its input is the
-one output revision. The reviewer receives the workflow outcome manifest, unresolved
-blockers, selection/integration provenance, and exact revision regardless of extra
+last in the array (or the only stage). Its input is the one output revision.
+The reviewer receives the workflow outcome manifest, unresolved
+blockers, earlier review/repair provenance, and exact revision regardless of extra
 `evidence` references. An evidence list cannot hide known blockers.
 
 `publish_repairs` defaults false. If true, once final review is ready, publish its
 changed, locally checked input candidate with an expected-head lease, reconcile
 publication, then start final review of that exact published head. Only this one
-authority updates the parent PR; siblings never push themselves. GitHub CI can
-run on the repairs while final review inspects them. An unchanged input needs no
+authority updates the parent PR; individual stages do not push themselves.
+GitHub CI can run on the repairs while final review inspects them. An unchanged input needs no
 push. This is a proposed orchestration contract built on the basic repair design.
 
 If publication is false, final review may inspect a private candidate, but cannot
@@ -466,16 +517,16 @@ their separate adopted vocabulary and grant state.
 
 ## 9. Operator profile and host scheduling
 
-The [Alpaca profile](examples/operator-alpaca.toml) proposes the companion shape:
+The [Alpaca](examples/operator-alpaca.toml) and
+[OpenRouter](examples/operator-openrouter.toml) profiles propose the companion shape:
 `schema_version`, `connections`, `host`, `permissions`, and `defaults`.
 Operator keys are rejected in repo/PR policy.
 
 | Operator field | Contract |
 | --- | --- |
-| `connections.<id>.provider` | `ollama`, future `openai_compatible` (e.g. LiteLLM), or future `openrouter`; unsupported adapters are errors. |
-| `connections.<id>.endpoint` | Explicit base URL for Ollama/compatible APIs. Compatible adapters append paths such as `chat/completions` to this base, preserving any configured prefix. OpenRouter uses its adapter's fixed endpoint. |
-| `connections.<id>.credential_ref` | Required for OpenRouter; optional for an authenticated compatible server. Never a literal secret. Reference backend is an operator integration detail. |
-| `host.max_parallel_models` | Positive installation-wide ceiling, default 1. |
+| `connections.<id>.provider` | `ollama` or `openrouter`, both required in v1. Generic `openai_compatible` inference is deferred; unsupported adapters are errors. |
+| `connections.<id>.endpoint` | Required explicit base URL for Ollama. Not allowed for OpenRouter, which uses its adapter's fixed HTTPS endpoint. |
+| `connections.<id>.credential_ref` | Required for OpenRouter; v1 uses `env:NAME` with a valid environment variable name. Never a literal secret. Not an Ollama field in v1. |
 | `host.model_residency` | `none` (default) or `prefer_loaded`, within dependencies and fairness. |
 | `host.memory_headroom` | Optional positive integer `GiB` string; desired space for OS/tools/other apps, not an OS reservation or proof a model fits. |
 | `host.ollama_keep_alive` | Optional finite duration requested from Ollama; not exclusive control of a shared server. |
@@ -489,14 +540,19 @@ a profile never starts a watcher. Progress/proposal posting stays subject to
 configured App/watcher authorization. Examples are inert until explicitly selected.
 
 Connections select the adapter protocol rather than guessing it from URL/port.
-Endpoint URLs must not embed credentials; use `credential_ref` where needed.
+Endpoint URLs must not embed credentials. Resolve an OpenRouter `credential_ref`
+only in the adapter's operator context; missing/empty variables fail setup. The
+service's private environment is configured outside the repository, independently
+of desktop login. Never pass its key to tools, checks, child processes, session
+records, or logs. Additional credential backends can follow separately.
 Provider/endpoint grants and metadata still determine eligibility. A proxy on
 loopback does not establish local inference or grant paid use.
 
-The local recipe passes each model's completed revision to the next. To run
-independent candidates serially, keep each `input = "pr.head"` and use host
-concurrency one instead. A 64GB machine may need reduced context as well as limited
-concurrency. Unknown memory requirements remain unknown. Residency preferences
+V1 dispatches one workflow operation at a time; human waits release the execution
+slot so another admitted PR may proceed. There is no configurable fan-out, even
+on larger hosts. The local recipe passes each model's completed revision to the
+next. A 64GB machine may still need reduced context; serial scheduling is not a
+memory guarantee. Unknown memory requirements remain unknown. Residency preferences
 cannot reserve inference slots through human waits, starve other PRs, download
 models, or silently choose paid fallbacks.
 
@@ -527,33 +583,44 @@ identical accounting semantics: surface conversions requiring a human choice.
 Preview migration and preserve sources. Never combine implicit JSON/TOML authority
 or reinterpret saved attempts under a new schema.
 
-Suggested delivery slices:
+Suggested delivery slices, with both adapters required before calling v1 runnable:
 
 1. Agree on semantics; implement pure-Go parsing, typed validation, layered
    resolution, and offline explain output. Execution remains explicit.
-2. Run one review/converge/final chain through existing adapters and bounded repair
-   work (#9/#11), with cumulative accounting and recovery.
-3. Under #10, implement model-ordered serial waves, then candidates/selection/
-   integration and capacity-permitted parallelism. Reject unsupported kinds until
-   implemented; never approximate an independent fork as a dependent chain.
+2. Add the pure-Go OpenRouter adapter with explicit credential resolution,
+   capability checks, tool/reasoning continuation, price-bounded admission, actual
+   usage accounting, and safe treatment of unknown outcomes. Keep effects thin
+   and inject clients/clocks. A text-only adapter is insufficient.
+3. Run serial review/converge/final chains through Ollama, OpenRouter, and a mixed
+   chain, building on bounded repair work (#9/#11). Include human waits, separate
+   judging, cumulative accounting, and recovery. No branch/join syntax ships in v1.
 4. Add public import and richer objective planning. Author an agent skill only
    once the contract and executable examples exist.
 
-Behavior fixtures cover independent versus dependent inputs; zero/fewer-than-K
-selection; partial joins; stale head/base/checks; human waits/corrections; concurrent
-reservations; uncertain spending/publication; and restart without duplicated work.
-Use fakes and explicit clocks for normal tests; real adapters have separate suites.
+Behavior fixtures cover ordered revision/evidence handoff, rejection of branching
+fields/inputs, stale head/base/checks, human waits/corrections, reserve protection,
+unknown spending/publication, and restart without duplicated work. Both adapter
+suites cover multi-turn tool calls, reasoning continuation, rejected capabilities,
+and failed requests; OpenRouter also needs missing-key, rate-limit, token/cost,
+and ambiguous-charge fixtures. Use fakes and explicit clocks for normal tests.
+Real adapter validation belongs to a separately invoked networked suite, never
+configuration loading or the normal tests. Release-test cadence remains undecided.
+
+The broader orchestration work in #10 can later add independent candidates,
+selection/integration, and parallelism. The [future sketch](examples/future/diverge-and-converge-workflow.toml)
+has no assigned schema version and must fail v1 validation. Do not silently run a
+branching document as a serial approximation.
 
 ## 11. Decisions to discuss before freezing v1
 
-- **Authoring:** are ordered waves sufficient, or are arbitrary partial dependencies
-  important enough to expose `after` in v1?
+- **Scope settled:** serial stages, Ollama, and OpenRouter are v1; fan-out/fan-in
+  are deferred. The flat `workflow.stages` spelling is the proposed representation.
 - **Loop name:** is `converge` clear, or is `review_repair` better? The behavior
   includes clarification and bounded repetition, not arbitrary code.
 - **Local escalation:** this recipe always runs both model passes. A cost recipe
   might instead skip the heavier pass on scoped LGTM; that gate needs explicit syntax.
 - **Final findings:** the draft returns `needs_work`. Should a declared outer-round
-  mechanism admit another wave automatically within cumulative limits/reserves?
+  mechanism later admit another serial pass within cumulative limits/reserves?
 - **Defaults:** ten minutes for judging and no default turn ceiling follow prior
   direction. Other numeric defaults here are proposals for discussion.
 - **Patch size:** the original lines-of-code idea needs rules for generated files,

@@ -1,7 +1,7 @@
 # DESIGN DRAFT: not accepted by the current CLI. See ../config-v1.md.
 # Intent: finish a bounded pass with one resident model before moving to the next.
 # This is a dependent chain: Qwen receives GPT-OSS's resulting revision.
-# Independent candidates scheduled serially would each use input = "pr.head".
+# V1 has one revision chain; independent candidates are deferred.
 # Host capacity/residency belongs in operator-alpaca.toml, not this repo policy.
 schema_version = 1
 objective = "quality"
@@ -47,13 +47,7 @@ compute = "10m"
 final_review_compute = "10m"
 evaluation_compute = "10m"
 
-[[workflow.waves]]
-id = "local-passes"
-execution = "serial"
-[workflow.waves.limits]
-compute = "60m"
-
-[[workflow.waves.stages]]
+[[workflow.stages]]
 id = "oss-pass"
 kind = "converge"
 input = "pr.head"
@@ -62,7 +56,7 @@ repairer = "oss"
 max_repairs = 1
 limits = { compute = "25m" }
 
-[[workflow.waves.stages]]
+[[workflow.stages]]
 id = "qwen-pass"
 kind = "converge"
 input = "oss-pass.revision"
@@ -74,10 +68,7 @@ limits = { compute = "35m" }
 # An OSS LGTM closes that pass, not the required Qwen pass.
 # An incomplete OSS pass stops this dependency instead of silently counting as clean.
 
-[[workflow.waves]]
-id = "acceptance"
-execution = "serial"
-[[workflow.waves.stages]]
+[[workflow.stages]]
 id = "final-review"
 kind = "review"
 input = "qwen-pass.revision"

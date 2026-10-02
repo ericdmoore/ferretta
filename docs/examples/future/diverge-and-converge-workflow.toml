@@ -1,9 +1,10 @@
-# DESIGN DRAFT: not accepted by the current CLI. See ../config-v1.md.
+# FUTURE DESIGN SKETCH: outside v1 and not accepted by the current CLI.
+# Deliberately unversioned; a v1 reader must reject this document.
+# See ../../config-v1.md for the serial v1 contract.
 # Intent: independent review/repair candidates -> select up to K useful
 # contributions -> integrate compatible ideas -> review the combined revision.
 # Candidates start at the same PR revision, not on top of each other.
 # Child PRs and Cloudflare execution are future options, not required here.
-schema_version = 1
 objective = "quality"
 
 # Bind connection "litellm" to the proxy's URL in the operator profile.

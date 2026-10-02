@@ -9,7 +9,7 @@ provider = "ollama"
 endpoint = "http://127.0.0.1:11434"
 
 [host]
-max_parallel_models = 1
+# V1 already executes workflow operations serially.
 model_residency = "prefer_loaded"
 memory_headroom = "16GiB"
 ollama_keep_alive = "5m"
