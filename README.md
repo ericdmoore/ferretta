@@ -48,10 +48,6 @@ The [review and scorecard guide](docs/evaluation.md) explains the implemented
 Checks workflow, legacy comment mode, and their limits. The [implementation plan](docs/review-evaluation.md)
 records the broader effort. Automated grades are assessments, not verified correctness.
 
-To have an agent help author a policy, point it to
-[skills/ferretta-config/SKILL.md](skills/ferretta-config/SKILL.md) in this checkout.
-The skill distinguishes supported configuration from proposed TOML examples.
-
 ### Self-review checkpoint
 
 On September 29, 2026, Ferretta reviewed [PR #1](https://github.com/ericdmoore/ferretta/pull/1)
