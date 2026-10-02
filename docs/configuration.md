@@ -3,6 +3,11 @@
 An agent configuration-authoring skill is deferred until the v1 configuration
 language is specified and validated examples exist.
 
+The [v1 specification draft](https://github.com/ericdmoore/ferretta/blob/main/docs/config-v1.md)
+and [concrete recipes](https://github.com/ericdmoore/ferretta/tree/main/docs/examples)
+propose fields, typed workflow semantics, and scoped limits for discussion. They
+are not accepted by the current CLI and do not replace the agreed decisions below.
+
 ## Agreed target
 
 The effective policy resolves field by field:
@@ -121,8 +126,8 @@ GitHub App identity under their existing authorization rules.
 
 No TOML loader, layered resolver, objective selector, persistent watch-list editor,
 subscription auth or encrypted secret database is shipped in this slice. These
-decisions establish the contract; the complete TOML schema and JSON migration
-will follow implementation of those policy surfaces. Existing JSON remains
+decisions establish the direction; the v1 draft now proposes a TOML contract,
+while schema adoption and JSON migration remain future work. Existing JSON remains
 explicit and is never silently overwritten or interpreted as TOML.
 
 ## Current Ollama JSON policy

@@ -77,18 +77,23 @@ Presets do not reset or increase budgets. Money, model-and-tool execution time,
 repair cycles, and optional wall-clock deadlines are separate constraints.
 Parallel execution sums worker time; human waiting is excluded from compute.
 Do not impose a model-turn ceiling merely by selecting an objective: model
-turns and review/repair cycles are different controls. Concrete default resource
-allowances and their TOML fields remain to be designed.
+turns and review/repair cycles are different controls. The v1 draft proposes
+concrete resource defaults and fields; they remain open for discussion.
 
 ## Scope of this draft
+
+The [v1 specification draft](../config-v1.md) now proposes the broader schema and
+[complete recipes](../examples/README.md). These preset preference files remain
+compatible with that proposal; neither the schema nor planner is implemented.
 
 The only proposed fields in these files are `schema_version`, `objective`,
 `routing.prefer`, and `planning.strategy`, with the values shown above. This
 gives us three reviewable preset personalities without pretending the full
 policy schema is settled.
 
-Next schema work covers model aliases and role assignments, capability/effort
+The v1 draft proposes model aliases and role assignments, capability/effort
 requirements, checks, limits, permitted effects, fallbacks, and explicit waves.
+Those details remain under discussion and are not accepted by the CLI.
 Credentials, endpoints, watch lists, and state paths remain operator settings;
 portable policy refers to configured connections. See
 [configuration decisions](../configuration.md) for existing surfaces and

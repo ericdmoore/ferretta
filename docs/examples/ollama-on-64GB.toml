@@ -1,5 +1,92 @@
-# So you are running Ollama on 64GB RAM; you thoguht that would be enough, 
-# but you learned that switching models hurts - since you have to evict and load a whole new model.
-# 
-# This configuration runs through serially, model by model
-# all done locally (assuming you already pulled these models)
+# DESIGN DRAFT: not accepted by the current CLI. See ../config-v1.md.
+# Intent: finish a bounded pass with one resident model before moving to the next.
+# This is a dependent chain: Qwen receives GPT-OSS's resulting revision.
+# Independent candidates scheduled serially would each use input = "pr.head".
+# Host capacity/residency belongs in operator-alpaca.toml, not this repo policy.
+schema_version = 1
+objective = "quality"
+
+[models.oss]
+route = "local-oss"
+inference = "local"
+context_tokens = 131072
+max_output_tokens = 16384
+[models.oss.thinking]
+mode = "effort"
+effort = "medium"
+
+[models.qwen]
+route = "local-qwen"
+inference = "local"
+context_tokens = 131072
+max_output_tokens = 16384
+[models.qwen.thinking]
+mode = "provider_default" # Explicitly accepts unknown effective effort.
+
+[checks]
+commands = [["make", "check"]]
+formatter = ["make", "fmt"]
+protected_paths = ["go.mod", "go.sum", ".go-version"]
+
+[limits.pr]
+compute = "90m"
+spend_usd = "0.00"
+max_repairs = 3
+max_reviews = 8
+[limits.review]
+compute = "10m"
+max_turns = "unlimited"
+[limits.repair]
+compute = "15m"
+max_turns = "unlimited"
+[limits.evaluation]
+compute = "10m"
+[limits.reserve]
+final_review_compute = "10m"
+evaluation_compute = "10m"
+
+[[workflow.waves]]
+id = "local-passes"
+execution = "serial"
+[workflow.waves.limits]
+compute = "60m"
+
+[[workflow.waves.stages]]
+id = "oss-pass"
+kind = "converge"
+input = "pr.head"
+reviewer = "oss"
+repairer = "oss"
+max_repairs = 1
+limits = { compute = "25m" }
+
+[[workflow.waves.stages]]
+id = "qwen-pass"
+kind = "converge"
+input = "oss-pass.revision"
+evidence = ["oss-pass"]
+reviewer = "qwen"
+repairer = "qwen"
+max_repairs = 2
+limits = { compute = "35m" }
+# An OSS LGTM closes that pass, not the required Qwen pass.
+# An incomplete OSS pass stops this dependency instead of silently counting as clean.
+
+[[workflow.waves]]
+id = "acceptance"
+execution = "serial"
+[[workflow.waves.stages]]
+id = "final-review"
+kind = "review"
+input = "qwen-pass.revision"
+reviewer = "qwen" # Keep Qwen resident; start a distinct final-review session.
+evidence = ["oss-pass", "qwen-pass"]
+
+[completion]
+review = "final-review"
+publish_repairs = true
+merge = "never"
+
+[evaluation]
+enabled = true
+judge = "oss" # One deliberate switch back; scorecard covers both passes.

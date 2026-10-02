@@ -44,6 +44,9 @@ OpenRouter inference, and gated repairs/merging. The agreed configuration layers
 and cost/time/quality objectives are described in [configuration decisions](docs/configuration.md)
 and [architecture](arch.md); the layered TOML resolver is not implemented.
 
+The [v1 configuration draft](docs/config-v1.md) and [example recipes](docs/examples/README.md)
+propose the language for bounded loops, serial/parallel waves, and candidate integration.
+
 The [review and scorecard guide](docs/evaluation.md) explains the implemented
 Checks workflow, legacy comment mode, and their limits. The [implementation plan](docs/review-evaluation.md)
 records the broader effort. Automated grades are assessments, not verified correctness.

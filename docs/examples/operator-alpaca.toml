@@ -1,0 +1,32 @@
+# DESIGN DRAFT: companion operator profile, not root ferretta.toml.
+# Not accepted by the current CLI. No secrets; loading does not start a service.
+# Actual profiles live outside PR-controlled files. These settings do not prove
+# either model/context fits on a particular machine. See ../config-v1.md.
+schema_version = 1
+
+[connections.ollama]
+provider = "ollama"
+endpoint = "http://127.0.0.1:11434"
+
+[routes.local-oss]
+connection = "ollama"
+model = "gpt-oss:20b"
+[routes.local-qwen]
+connection = "ollama"
+model = "qwen3.8:27b-mlx"
+
+[host]
+max_parallel_models = 1
+model_residency = "prefer_loaded"
+memory_headroom = "16GiB"
+ollama_keep_alive = "5m"
+
+[permissions]
+paid_inference = false
+repair_commits = true
+squash_merge = false
+intent_humans = ["ericdmoore"]
+resource_humans = ["ericdmoore"]
+
+[defaults]
+objective = "cost"

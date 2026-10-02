@@ -5,6 +5,10 @@ recorded for comparison. Neither is implemented or selected. They complement
 the [objective presets](presets/README.md): objectives express preferences;
 an explicit workflow describes the work and its ordering.
 
+The newer [v1 specification draft](config-v1.md) works through the full recipes
+using ordered waves, typed stages, and explicit inputs. It is a proposal for
+discussion, not adoption of option B; this comparison retains both alternatives.
+
 Both examples describe the same workflow:
 
 1. Two reviewers independently examine the same submitted revision.
